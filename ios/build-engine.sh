@@ -14,7 +14,7 @@ Z="$ROOT/build/0ad"
 (
 	cd "$Z/libraries/source/premake-core"
 	# premake derives its version from `git describe`; stop it from seeing 0ad's repo (v0.28.0)
-	env GIT_CEILING_DIRECTORIES="$PWD" -u CC -u CXX -u CFLAGS -u CXXFLAGS -u LDFLAGS -u CPPFLAGS -u AR -u RANLIB JOBS="-j$JOBS" ./build.sh
+	env -u CC -u CXX -u CFLAGS -u CXXFLAGS -u LDFLAGS -u CPPFLAGS -u AR -u RANLIB GIT_CEILING_DIRECTORIES="$PWD" JOBS="-j$JOBS" ./build.sh
 ) || { echo "premake build failed"; exit 1; }
 
 # 2) present our iOS deps in the layout the macOS premake scripts expect
