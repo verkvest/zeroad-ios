@@ -103,7 +103,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [iphonesimulator]
+        platform: [iphonesimulator, iphoneos]
     env:
       PLATFORM: ${{ matrix.platform }}
     steps:
@@ -138,37 +138,41 @@ jobs:
           path: mozjs-${{ matrix.platform }}.tar.gz
           retention-days: 14
 
-  # Experimental: compile the real engine for the iOS Simulator and report what fails.
+  # Experimental: compile/link the real engine for iOS (Simulator + device), package an .app, run it in the Simulator.
   engine:
     needs: [deps, spidermonkey]
     runs-on: macos-15
     timeout-minutes: 90
     continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [iphonesimulator, iphoneos]
     env:
-      PLATFORM: iphonesimulator
+      PLATFORM: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
       - run: brew install pkg-config || true
       - uses: actions/download-artifact@v4
         with:
-          pattern: "*-iphonesimulator"
+          pattern: "{deps,mozjs}-${{ matrix.platform }}"
           merge-multiple: true
       - run: |
           mkdir -p build/deps build/mozjs
-          tar -C build/deps -xzf deps-iphonesimulator.tar.gz
-          tar -C build/mozjs -xzf mozjs-iphonesimulator.tar.gz
-      - name: Compile pyrogenesis for iOS Simulator (make -k, collect errors)
+          tar -C build/deps -xzf deps-${PLATFORM}.tar.gz
+          tar -C build/mozjs -xzf mozjs-${PLATFORM}.tar.gz
+      - name: Compile pyrogenesis for iOS (make -k, collect errors)
         run: ios/build-engine.sh
       - name: Package Pyrogenesis.app (engine + 'mod' data only)
         id: pkg
         run: scripts/package-engine-app.sh out
       - name: Launch engine in iOS Simulator
-        if: steps.pkg.outcome == 'success'
+        if: steps.pkg.outcome == 'success' && matrix.platform == 'iphonesimulator'
         run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out 60 -mod=mod
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: engine-iphonesimulator-log
+          name: engine-${{ matrix.platform }}-log
           path: |
             build/engine-*.log
             build/engine-summary.txt

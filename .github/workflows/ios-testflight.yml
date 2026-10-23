@@ -83,7 +83,9 @@ jobs:
         run: |
           . ios/env.sh
           cmake -S touchdemo -B build/xcode -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
-            -DCMAKE_PREFIX_PATH="$DEPS_PREFIX" -DAPP_BUNDLE_ID="$BUNDLE_ID" \
+            -DCMAKE_PREFIX_PATH="$DEPS_PREFIX" -DSDL2_DIR="$DEPS_PREFIX/lib/cmake/SDL2" \
+            -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH \
+            -DAPP_BUNDLE_ID="$BUNDLE_ID" \
             -DAPP_VERSION="$APP_VERSION" -DAPP_BUILD="${{ github.run_number }}" \
             -DCMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM="$TEAM_ID" -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_STYLE=Automatic
       - name: Archive (cloud-managed signing via API key)
