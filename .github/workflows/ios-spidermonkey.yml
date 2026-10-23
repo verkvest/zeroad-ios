@@ -10,7 +10,7 @@ on:
 
 jobs:
   spidermonkey:
-    runs-on: macos-latest
+    runs-on: macos-15
     timeout-minutes: 120
     strategy:
       fail-fast: false

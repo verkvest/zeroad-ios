@@ -21,7 +21,7 @@ jobs:
           ./test_touch
 
   deps:
-    runs-on: macos-latest
+    runs-on: macos-15
     strategy:
       fail-fast: false
       matrix:
@@ -59,7 +59,7 @@ jobs:
 
   touchdemo:
     needs: [deps, gesture-tests]
-    runs-on: macos-latest
+    runs-on: macos-15
     strategy:
       fail-fast: false
       matrix:
