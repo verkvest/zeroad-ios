@@ -17,6 +17,8 @@ Z="$ROOT/build/0ad"
 	env -u CC -u CXX -u CFLAGS -u CXXFLAGS -u LDFLAGS -u CPPFLAGS -u AR -u RANLIB GIT_CEILING_DIRECTORIES="$PWD" JOBS="-j$JOBS" ./build.sh
 ) || { echo "premake build failed"; exit 1; }
 
+"$Z/libraries/source/cxxtest-4.4/build.sh" || echo "WARNING: cxxtest fetch failed (needed by mocks_real)"
+
 # 2) present our iOS deps in the layout the macOS premake scripts expect
 M="$Z/libraries/macos"
 mkdir -p "$M/boost" "$M/iconv/include" "$M/iconv/lib"
@@ -45,8 +47,8 @@ cp -f "$MOZJS_PREFIX"/lib/libmozjs128-*.a "$SM/lib/" 2>/dev/null || echo "WARNIN
 
 # 3) generate makefiles
 cd "$Z/build/premake"
-"$Z/libraries/source/premake-core/bin/premake5" --file=premake5.lua --outpath=../workspaces/ios \
-	--gles --without-nvtt --without-lobby --without-miniupnpc --without-atlas --without-tests --without-pch --without-dap-interface \
+HOSTTYPE=arm64 "$Z/libraries/source/premake-core/bin/premake5" --file=premake5.lua --outpath=../workspaces/ios \
+	--ios --gles --without-nvtt --without-lobby --without-miniupnpc --without-atlas --without-tests --without-pch --without-dap-interface \
 	gmake || { echo "premake failed"; exit 1; }
 
 # 4) compile, keep going to collect every error
@@ -64,6 +66,11 @@ RC=$?
 	echo "object files compiled: $(find obj -name '*.o' | wc -l | tr -d ' ')"
 	echo "static libs: $(find ../../../binaries/system -name '*.a' 2>/dev/null | xargs -n1 basename 2>/dev/null | tr '\n' ' ')"
 	echo "files with errors: $(grep -E '^[^ ]+\.(cpp|mm|c|h):[0-9]+:[0-9]+: (fatal )?error:' "$LOG" | cut -d: -f1 | sort -u | wc -l | tr -d ' ')"
+	BIN="$(find ../../../binaries/system -maxdepth 1 -name 'pyrogenesis*' -type f 2>/dev/null | head -1)"
+	echo "pyrogenesis binary: ${BIN:-not linked}"
+	[ -n "$BIN" ] && file "$BIN" && ls -la "$BIN"
+	echo "undefined symbols: $(grep -cE '^ +"_' "$LOG")"
+	grep -A1 -E '^ +"_' "$LOG" | grep -E '^ +"_' | sed -E 's/, referenced from.*//' | sort -u | head -60
 	echo "--- errors by directory ---"
 	grep -E '^[^ ]+\.(cpp|mm|c|h):[0-9]+:[0-9]+: (fatal )?error:' "$LOG" | cut -d: -f1 | sed -E 's|.*/source/||; s|/[^/]+$||' | sort | uniq -c | sort -rn | head -40
 	echo "--- first distinct errors ---"
