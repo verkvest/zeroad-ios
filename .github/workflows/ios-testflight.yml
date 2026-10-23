@@ -1,5 +1,5 @@
 # Optional: sign + upload the current iOS app to TestFlight.
-# Manual only (workflow_dispatch). Skips cleanly (green) when secrets are absent.
+# Manual (workflow_dispatch) or by pushing a tag testflight-*. Skips cleanly (green) when secrets are absent.
 #
 # Required repo secrets (set them in GitHub → Settings → Secrets → Actions; never commit them):
 #   APPSTORE_API_KEY_P8      – contents of AuthKey_<KEYID>.p8, base64-encoded (base64 -i AuthKey_X.p8)
@@ -19,9 +19,16 @@ on:
       version:
         description: Marketing version
         default: 0.1.0
+      app:
+        description: "touchdemo | engine"
+        default: touchdemo
+  push:
+    tags: ["testflight-*"]
 
 env:
   TEAM_ID: 38PT254HDZ
+  BUNDLE_ID: ${{ inputs.bundle_id || 'es.verkvest.zeroad' }}
+  APP_VERSION: ${{ inputs.version || '0.1.0' }}
 
 jobs:
   testflight:
@@ -38,9 +45,13 @@ jobs:
           fi
       - uses: actions/checkout@v4
         if: env.HAS_KEY == 'true'
-      - name: Tools
+      - name: Tools + Xcode 26 (App Store requires the iOS 26 SDK)
         if: env.HAS_KEY == 'true'
-        run: brew install ninja || true
+        run: |
+          brew install ninja || true
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -vi beta | sort -V | tail -1)
+          [ -n "$X" ] && sudo xcode-select -s "$X"
+          xcodebuild -version
       - name: Cache deps
         if: env.HAS_KEY == 'true'
         uses: actions/cache@v4
@@ -72,8 +83,8 @@ jobs:
         run: |
           . ios/env.sh
           cmake -S touchdemo -B build/xcode -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
-            -DCMAKE_PREFIX_PATH="$DEPS_PREFIX" -DAPP_BUNDLE_ID="${{ inputs.bundle_id }}" \
-            -DAPP_VERSION="${{ inputs.version }}" -DAPP_BUILD="${{ github.run_number }}" \
+            -DCMAKE_PREFIX_PATH="$DEPS_PREFIX" -DAPP_BUNDLE_ID="$BUNDLE_ID" \
+            -DAPP_VERSION="$APP_VERSION" -DAPP_BUILD="${{ github.run_number }}" \
             -DCMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM="$TEAM_ID" -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_STYLE=Automatic
       - name: Archive (cloud-managed signing via API key)
         if: env.HAS_KEY == 'true'
@@ -85,7 +96,7 @@ jobs:
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/ZeroAD.xcarchive" \
             -allowProvisioningUpdates -authenticationKeyPath "$KEYFILE" \
             -authenticationKeyID "$APPSTORE_API_KEY_ID" -authenticationKeyIssuerID "$APPSTORE_API_ISSUER_ID" \
-            archive | tail -100
+            archive | tee "$RUNNER_TEMP/archive.log" | tail -100
           test ${PIPESTATUS[0]} -eq 0
       - name: Export + upload to TestFlight
         if: env.HAS_KEY == 'true'
@@ -98,7 +109,7 @@ jobs:
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict>
             <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>upload</string>
+            <key>destination</key><string>export</string>
             <key>teamID</key><string>${TEAM_ID}</string>
             <key>signingStyle</key><string>automatic</string>
             <key>manageAppVersionAndBuildNumber</key><false/>
@@ -108,6 +119,16 @@ jobs:
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
             -allowProvisioningUpdates -authenticationKeyPath "$KEYFILE" \
             -authenticationKeyID "$APPSTORE_API_KEY_ID" -authenticationKeyIssuerID "$APPSTORE_API_ISSUER_ID"
+          ls -la "$RUNNER_TEMP/export"
+          xcrun altool --upload-app -t ios -f "$RUNNER_TEMP"/export/*.ipa \
+            --apiKey "$APPSTORE_API_KEY_ID" --apiIssuer "$APPSTORE_API_ISSUER_ID"
+          echo "::notice::Uploaded $BUNDLE_ID $APP_VERSION (${{ github.run_number }}) to App Store Connect"
+      - uses: actions/upload-artifact@v4
+        if: always() && env.HAS_KEY == 'true'
+        with:
+          name: testflight-logs
+          path: ${{ runner.temp }}/archive.log
+          if-no-files-found: ignore
       - name: Cleanup key
         if: always()
         run: rm -rf ~/.appstoreconnect/private_keys
