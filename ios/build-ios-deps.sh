@@ -145,7 +145,7 @@ build_icu() {
 		cd "$DEPS_SRC/icu-host"
 		env -u CFLAGS -u CXXFLAGS -u LDFLAGS -u CPPFLAGS -u CC -u CXX -u AR -u RANLIB \
 			CC=clang CXX=clang++ CXXFLAGS="-std=c++17" \
-			"$DEPS_SRC/icu/source/configure" --disable-tests --disable-samples --disable-extras --disable-tools=no --enable-static --disable-shared
+			"$DEPS_SRC/icu/source/configure" --disable-tests --disable-samples --disable-extras --enable-static --disable-shared
 		env -u CFLAGS -u CXXFLAGS -u LDFLAGS -u CPPFLAGS -u CC -u CXX -u AR -u RANLIB make -j "$JOBS"
 	)
 	# 2) cross build

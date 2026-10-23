@@ -40,12 +40,15 @@ MOZCONFIG_OPTIONS="--target=$TARGET --enable-ios-target=$IOS_MIN --with-ios-sdk=
 	--enable-portable-baseline-interp --disable-jit --disable-shared-js --enable-optimize --disable-debug" \
 BUILD_DIR="build-release" \
 	./mach build -j"${JOBS:-$(sysctl -n hw.ncpu)}"
+echo "mach build finished"
+set -x
 
 mkdir -p "$OUT/lib" "$OUT/include/mozjs-release"
 cp -R -L build-release/dist/include/* "$OUT/include/mozjs-release/"
 rm -f "$OUT/include/mozjs-release/"{zlib.h,zconf.h,mozzconf.h}
 cp -L build-release/js/src/build/libjs_static.a "$OUT/lib/libmozjs128-release.a"
-rust_path="build-release/$(grep jsrust build-release/js/src/build/backend.mk | cut -d / -f 2-)"
+rust_path="$(find build-release -name libjsrust.a -not -path "*/deps/*" | head -1)"
+echo "jsrust: $rust_path"
 cp -L "$rust_path" "$OUT/lib/libmozjs128-rust.a"
 ls -la "$OUT/lib/"libmozjs128*
 touch "$OUT/.built-spidermonkey"
