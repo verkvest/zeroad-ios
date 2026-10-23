@@ -1,0 +1,22 @@
+diff --git a/source/renderer/backend/gl/Device.cpp b/source/renderer/backend/gl/Device.cpp
+index 73b165e..f8495cb 100644
+--- a/source/renderer/backend/gl/Device.cpp
++++ b/source/renderer/backend/gl/Device.cpp
+@@ -324,6 +324,8 @@ std::unique_ptr<IDevice> CDevice::Create(SDL_Window* window, const bool arb)
+ 	if (!arb && !ogl_HaveVersion(2, 0))
+ 		return nullptr;
+ 
++#if !CONFIG2_GLES
++	// Desktop-GL extension checks; on OpenGL ES 2.0+ VBOs, multitexture, FBOs and GLSL are core.
+ 	if ((ogl_HaveExtensions(0, "GL_ARB_vertex_program", "GL_ARB_fragment_program", nullptr) // ARB
+ 		&& !ogl_HaveVersion(2, 0)) // GLSL
+ 		|| !ogl_HaveExtension("GL_ARB_vertex_buffer_object") // VBO
+@@ -340,6 +342,8 @@ std::unique_ptr<IDevice> CDevice::Create(SDL_Window* window, const bool arb)
+ 		);
+ 	}
+ 
++	#endif // !CONFIG2_GLES
++
+ 	device->m_ARB = arb;
+ 
+ 	device->m_Name = GetNameImpl();
