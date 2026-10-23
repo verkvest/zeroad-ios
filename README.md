@@ -45,51 +45,43 @@ touchdemo/                    SDL2-приложение ZeroADTouch.app — де
 - SpiderMonkey 128 собирается для iOS Simulator в режиме интерпретатора (без JIT);
 - `ZeroADTouch.app` собирается для симулятора и устройства; в iOS Simulator проходит самотест
   (`TOUCHDEMO SELFTEST PASS`: тап, двухпальцевый тап, pan, pinch, drag), скриншот в артефакте;
-- workflow TestFlight готов, без секретов корректно пропускается (зелёный).
+- SpiderMonkey 128 (без JIT) собирается и для устройства (iphoneos);
+- **движок pyrogenesis компилируется и линкуется** для iOS Simulator и iPhone (arm64): 506 объектных файлов,
+  0 ошибок, 0 неразрешённых символов (`patches/0ad/0002-ios-build.patch`, `libmozjs128-glue.a`);
+- `Pyrogenesis.app` (движок + официальный `mod.zip` из релизного архива 0.28.0, без арта игры) **запускается
+  в iOS Simulator**: VFS, конфиг, логи, SDL2, OpenAL и контекст OpenGL ES 2.0 инициализируются; падал на
+  проверке десктопных GL-расширений — исправлено `0003-gles-device-check.patch` (проверяется);
+- TestFlight-конвейер: архив → экспорт с облачной подписью App Store (через API key) работает и для
+  touch-демо, и для движка (`.ipa` ≈ 89 МБ). Загрузка упирается только в отсутствие записи приложения
+  в App Store Connect (см. блокеры). Теги `testflight-touchdemo-N` / `testflight-engine-N` запускают загрузку.
 
 ## Что не работает / блокеры
 
-0. **CI остановлен биллингом GitHub** (с 24.10.2026 00:13 Europe/Madrid): macOS-задачи не стартуют —
-   «recent account payments have failed or your spending limit needs to be increased». Нужно поправить оплату/лимит
-   в Settings → Billing & plans аккаунта verkvest (или сделать репозиторий публичным — тогда macOS-минуты бесплатны).
-1. **Движок (pyrogenesis) под iOS Simulator компилируется полностью** (505 объектных файлов, 0 ошибок компиляции,
-   патч `patches/0ad/0002-ios-build.patch`), но **ещё не слинкован**: в последнем прогоне оставались неразрешённые
-   символы mfbt (double_conversion, SHA1Sum, RandomUint64…), `startNewAtlasProcess` и одна инстанциация fmt —
-   исправления (mfbt в `libmozjs128-glue.a`, `sysdep/os/ios/ios_stubs.cpp`) запушены, но не проверены из-за биллинга.
-   Сборка движка для устройства (iphoneos) и SpiderMonkey для iphoneos ещё не добавлены в CI.
-   Job `engine` (continue-on-error)
-   компилирует его, пытается упаковать `Pyrogenesis.app` с мини-модом `mod` и запустить в симуляторе
-   (`scripts/package-engine-app.sh`, `scripts/sim-launch.py`), лог — артефакт `engine-iphonesimulator-log`.
-   Оставшиеся задачи:
-   - AppKit/FSEvents уже отключены для iOS (заглушки dir_watch/atlas), но нужна проверка путей бандла,
-     курсора и сведений о системе в рантайме;
-   - premake-скрипты 0ad ориентированы на macOS (ConsoleApp, `-framework OpenGL/Cocoa`); для .app нужен
-     отдельный таргет (Xcode/CMake) с Info.plist и iOS-фреймворками;
-   - рендер: в 0.28 есть GL-бэкенд с `--gles` (OpenGL ES устарел на iOS, но работает) и Vulkan-бэкенд;
-     правильный путь — Vulkan через MoltenVK, его нужно собрать под iOS;
-   - SpiderMonkey без JIT — ИИ и симуляция на JS будут заметно медленнее (оценить на устройстве).
-2. **Данные игры (≈1–2 ГБ арта)** не входят в репозиторий; нужна упаковка `public.zip` в бандл или
-   загрузка при первом запуске, плюс предконвертация моделей/текстур (на iOS нет FCollada/NVTT в рантайме).
-3. **UI под палец**: интерфейс 0 A.D. рассчитан на мышь и клавиатуру (горячие клавиши, мелкие кнопки).
-4. **Подпись/TestFlight**: секреты `APPSTORE_API_KEY_P8`, `APPSTORE_API_KEY_ID`, `APPSTORE_API_ISSUER_ID`
-   владелец добавляет сам (Settings → Secrets → Actions). App ID `es.verkvest.zeroad` должен существовать
-   или создаться при подписи (`-allowProvisioningUpdates`).
-5. Репозиторий приватный: бесплатные минуты macOS-раннеров ограничены (macOS-минуты считаются ×10).
+1. **Нет записи приложения в App Store Connect** для `es.verkvest.zeroad` (altool: «Cannot determine the Apple ID
+   from Bundle ID»). App Store Connect API не умеет создавать приложения — только веб: Apps → «+» → New App,
+   iOS, имя «0 A.D. Verkvest», язык English, Bundle ID `es.verkvest.zeroad`, SKU `zeroad-ios`.
+   После этого — повторить тег `testflight-*`.
+2. **Рендер**: дальше по пути запуска — GLSL-шейдеры 0ad под GLES (на Android-ветке они частично есть),
+   OpenGL ES на iOS устарел; правильный путь — Vulkan-бэкенд через MoltenVK.
+3. SpiderMonkey без JIT — ИИ и симуляция на JS будут заметно медленнее (оценить на устройстве).
+4. **Данные игры (`public.zip` ≈ 3,5 ГБ)** не входят в бандл; нужна загрузка при первом запуске или
+   On-Demand Resources, плюс предконвертация моделей/текстур (на iOS нет FCollada/NVTT в рантайме).
+5. **UI под палец**: интерфейс 0 A.D. рассчитан на мышь и клавиатуру (горячие клавиши, мелкие кнопки).
 
 ## Следующие шаги и оценки
 
 | Шаг | Оценка |
 |---|---|
-| Довести компиляцию движка: sysdep/os/ios, исправления premake, линковка | 3–5 дней |
-| iOS .app-таргет движка (CMake/Xcode), запуск главного меню в симуляторе на mod `mod` | 2–4 дня |
+| ~~Компиляция и линковка движка~~ | готово |
+| Главное меню в симуляторе на моде `mod` (GLES-шейдеры, пути бандла) | 2–4 дня |
 | MoltenVK/Vulkan или GLES-рендер на устройстве, отладка шейдеров | 3–7 дней |
 | Упаковка данных `public`, предконвертация кэша, запуск матча | 3–5 дней |
 | Адаптация UI под тач (крупные кнопки, контекстное меню вместо горячих клавиш) | 1–3 недели |
 | Производительность (без JIT), память, энергопотребление | 1–2 недели |
-| **Первая сборка в TestFlight с реальной игрой** | **≈ 3–6 недель** |
+| **Играбельная сборка в TestFlight с реальной игрой** | **≈ 3–5 недель** |
 
-TestFlight-сборку уже сейчас можно сделать из `touchdemo` (после добавления секретов) — это проверит подпись
-и загрузку, но это ещё не игра.
+TestFlight-сборки touch-демо и движка (пока без игровых данных) готовы к загрузке сразу после создания
+записи приложения в App Store Connect.
 
 ## Лицензия и условия публикации
 
