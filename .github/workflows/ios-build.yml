@@ -95,3 +95,75 @@ jobs:
           name: touchdemo-${{ matrix.platform }}
           path: out/
           retention-days: 14
+
+  # SpiderMonkey 128, interpreter-only (iOS forbids JIT). Slow (~15 min cold), cached.
+  spidermonkey:
+    runs-on: macos-15
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [iphonesimulator]
+    env:
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: build/mozjs/${{ matrix.platform }}
+          key: mozjs-${{ matrix.platform }}-${{ hashFiles('ios/build-spidermonkey-ios.sh', 'patches/spidermonkey/**', 'scripts/fetch-0ad.sh') }}
+      - uses: actions/setup-python@v5
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          python-version: "3.12"
+      - name: Rust toolchain
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install 1.82.0 --profile minimal
+          rustup default 1.82.0
+          rustup target add aarch64-apple-ios-sim aarch64-apple-ios
+          brew install cbindgen
+      - name: Build SpiderMonkey for iOS (no JIT)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          scripts/fetch-0ad.sh
+          ios/build-spidermonkey-ios.sh
+      - name: Pack
+        run: tar -C build/mozjs -czf mozjs-${PLATFORM}.tar.gz ${PLATFORM}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mozjs-${{ matrix.platform }}
+          path: mozjs-${{ matrix.platform }}.tar.gz
+          retention-days: 14
+
+  # Experimental: compile the real engine for the iOS Simulator and report what fails.
+  engine:
+    needs: [deps, spidermonkey]
+    runs-on: macos-15
+    timeout-minutes: 90
+    continue-on-error: true
+    env:
+      PLATFORM: iphonesimulator
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install pkg-config || true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*-iphonesimulator"
+          merge-multiple: true
+      - run: |
+          mkdir -p build/deps build/mozjs
+          tar -C build/deps -xzf deps-iphonesimulator.tar.gz
+          tar -C build/mozjs -xzf mozjs-iphonesimulator.tar.gz
+      - name: Compile pyrogenesis for iOS Simulator (make -k, collect errors)
+        run: ios/build-engine.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: engine-iphonesimulator-log
+          path: |
+            build/engine-*.log
+            build/engine-summary.txt
+          retention-days: 14

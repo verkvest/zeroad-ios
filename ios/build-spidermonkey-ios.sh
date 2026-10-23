@@ -7,7 +7,7 @@ set -eo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PLATFORM="${PLATFORM:-iphonesimulator}"
 IOS_MIN="${IOS_MIN:-15.0}"
-OUT="$ROOT/build/deps/$PLATFORM"
+OUT="${MOZJS_PREFIX:-$ROOT/build/mozjs/$PLATFORM}"
 SMDIR="$ROOT/build/0ad/libraries/source/spidermonkey"
 PV=128.13.0
 FOLDER="mozjs-$PV"
