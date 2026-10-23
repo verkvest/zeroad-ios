@@ -10,6 +10,8 @@ BIN="$(find "$Z/binaries/system" -maxdepth 1 -name 'pyrogenesis*' -type f | head
 [ -n "$BIN" ] || { echo "pyrogenesis not linked"; exit 1; }
 APP="$ROOT/build/Pyrogenesis.app"
 rm -rf "$APP"; mkdir -p "$APP/data/mods" "$OUTDIR"
+# copy the binary first: 'git sparse-checkout add' below prunes untracked files outside the cone (binaries/system)
+cp "$BIN" "$APP/pyrogenesis"
 
 # engine data: config + l10n from git (no LFS), and the engine-level 'mod' mod (GUI, shaders,
 # fonts) as the official packed mod.zip from the release data tarball (gitea LFS is too slow).
@@ -31,7 +33,6 @@ fi
 mkdir -p "$APP/data/mods/mod"; cp "$ROOT/build/data/mod.zip" "$APP/data/mods/mod/"
 du -sh "$APP/data"
 
-cp "$BIN" "$APP/pyrogenesis"
 sed -e 's/${MACOSX_BUNDLE_EXECUTABLE_NAME}/pyrogenesis/' \
     -e 's/${MACOSX_BUNDLE_GUI_IDENTIFIER}/es.verkvest.zeroad/' \
     -e 's/${MACOSX_BUNDLE_BUNDLE_NAME}/0 A.D./' \
