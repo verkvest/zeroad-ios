@@ -1,0 +1,93 @@
+name: ios-build
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gesture-tests:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Host unit tests for the touch gesture layer
+        run: |
+          clang++ -std=c++17 -Wall -Wextra -Werror touch/TouchGestures.cpp touch/test_TouchGestures.cpp -o test_touch
+          ./test_touch
+
+  deps:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [iphonesimulator, iphoneos]
+    env:
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: |
+          brew install ninja autoconf automake libtool pkg-config || true
+          xcodebuild -version
+          xcrun --sdk "$PLATFORM" --show-sdk-path
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: build/deps/${{ matrix.platform }}
+          key: deps-${{ matrix.platform }}-${{ hashFiles('ios/build-ios-deps.sh', 'ios/env.sh') }}
+          restore-keys: deps-${{ matrix.platform }}-
+      - name: Cache sources
+        uses: actions/cache@v4
+        with:
+          path: build/deps-src/*.tar.*
+          key: deps-src-${{ hashFiles('ios/build-ios-deps.sh') }}
+          restore-keys: deps-src-
+      - name: Build third-party libs for iOS
+        run: ios/build-ios-deps.sh
+      - name: Pack
+        run: tar -C build/deps -czf deps-${PLATFORM}.tar.gz ${PLATFORM}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deps-${{ matrix.platform }}
+          path: deps-${{ matrix.platform }}.tar.gz
+          retention-days: 14
+
+  touchdemo:
+    needs: [deps, gesture-tests]
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [iphonesimulator, iphoneos]
+    env:
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install ninja || true
+      - uses: actions/download-artifact@v4
+        with:
+          name: deps-${{ matrix.platform }}
+      - run: mkdir -p build/deps && tar -C build/deps -xzf deps-${PLATFORM}.tar.gz
+      - name: Build touch demo .app
+        run: |
+          . ios/env.sh
+          cmake -S touchdemo -B build/touchdemo-$PLATFORM -G Ninja $CMAKE_IOS_FLAGS -DCMAKE_INSTALL_PREFIX=/tmp/unused
+          cmake --build build/touchdemo-$PLATFORM -j "$JOBS"
+          APP=build/touchdemo-$PLATFORM/ZeroADTouch.app
+          ls -la "$APP"; file "$APP/ZeroADTouch"; otool -l "$APP/ZeroADTouch" | grep -A4 LC_BUILD_VERSION | head -8
+          codesign --force --sign - "$APP" || true
+          mkdir -p out && ditto -c -k --keepParent "$APP" out/ZeroADTouch-$PLATFORM.app.zip
+      - name: Run in iOS Simulator (self-test + screenshot)
+        if: matrix.platform == 'iphonesimulator'
+        run: python3 scripts/sim-run.py build/touchdemo-$PLATFORM/ZeroADTouch.app es.verkvest.zeroad.touchdemo out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: touchdemo-${{ matrix.platform }}
+          path: out/
+          retention-days: 14
