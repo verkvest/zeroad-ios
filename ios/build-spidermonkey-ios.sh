@@ -57,7 +57,20 @@ find build-release -name '*.a' -not -path '*/deps/*' -not -path '*/rust/*' | sed
 glue_objs="$(find build-release/mozglue build-release/memory -name '*.o' -not -path '*/test*' -not -path '*/gtest/*' 2>/dev/null | sort -u)"
 echo "glue objects:"; echo "$glue_objs" | sed 's/^/  /'
 cat >memalign_shim.c <<'C'
+#include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
+/* mfbt/Assertions.cpp is not part of libjs_static in a static build: provide its two symbols. */
+const char* gMozCrashReason = 0;
+static char sCrashBuf[1024];
+const char* MOZ_CrashPrintf(const char* aFormat, ...) {
+	va_list ap;
+	va_start(ap, aFormat);
+	vsnprintf(sCrashBuf, sizeof sCrashBuf, aFormat, ap);
+	va_end(ap);
+	gMozCrashReason = sCrashBuf;
+	return sCrashBuf;
+}
 /* iOS libc has no memalign(); mozjs falls back to it when jemalloc is disabled. */
 void *memalign(size_t alignment, size_t size) {
 	void *p = NULL;

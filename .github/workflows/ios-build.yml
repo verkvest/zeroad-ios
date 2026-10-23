@@ -159,6 +159,12 @@ jobs:
           tar -C build/mozjs -xzf mozjs-iphonesimulator.tar.gz
       - name: Compile pyrogenesis for iOS Simulator (make -k, collect errors)
         run: ios/build-engine.sh
+      - name: Package Pyrogenesis.app (engine + 'mod' data only)
+        id: pkg
+        run: scripts/package-engine-app.sh out
+      - name: Launch engine in iOS Simulator
+        if: steps.pkg.outcome == 'success'
+        run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out 60 -mod=mod
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -166,4 +172,5 @@ jobs:
           path: |
             build/engine-*.log
             build/engine-summary.txt
+            out/
           retention-days: 14
