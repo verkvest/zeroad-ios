@@ -1,0 +1,51 @@
+#!/bin/bash
+# Builds SpiderMonkey (mozjs 128, as pinned by 0 A.D.) for iOS, interpreter-only:
+# iOS forbids JIT (no W^X pages for third-party apps), so we use the
+# Portable Baseline Interpreter (--enable-portable-baseline-interp, implies --disable-jit).
+# Usage: PLATFORM=iphonesimulator|iphoneos ios/build-spidermonkey-ios.sh
+set -eo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PLATFORM="${PLATFORM:-iphonesimulator}"
+IOS_MIN="${IOS_MIN:-15.0}"
+OUT="$ROOT/build/deps/$PLATFORM"
+SMDIR="$ROOT/build/0ad/libraries/source/spidermonkey"
+PV=128.13.0
+FOLDER="mozjs-$PV"
+if [ "$PLATFORM" = "iphonesimulator" ]; then TARGET=aarch64-apple-ios-sim; else TARGET=aarch64-apple-ios; fi
+SDK="$(xcrun --sdk "$PLATFORM" --show-sdk-path)"
+
+[ -d "$SMDIR" ] || "$ROOT/scripts/fetch-0ad.sh"
+cd "$SMDIR"
+[ -s "$FOLDER.tar.xz" ] || curl -fL --retry 3 -o "$FOLDER.tar.xz" "https://releases.wildfiregames.com/libs/$FOLDER.tar.xz"
+rm -rf "$FOLDER"
+tar xfJ "$FOLDER.tar.xz" --exclude=js/src/tests/non262 --exclude=js/src/tests/test262 --exclude=js/src/jit-test \
+	--exclude=python/mozperftest --exclude=testing/web-platform --exclude=third_party/rust/mp4parse/link-u-avif-sample-images
+(
+	cd "$FOLDER"
+	OS=Darwin . ../patches/patch.sh
+	for p in "$ROOT"/patches/spidermonkey/*.patch; do
+		[ -e "$p" ] || continue
+		echo "Applying $(basename "$p")"
+		patch -p1 <"$p"
+	done
+)
+cd "$FOLDER"
+export MOZ_NOSPAM=1
+export MACH_BUILD_PYTHON_NATIVE_PACKAGE_SOURCE=none
+export MOZBUILD_STATE_PATH="$(pwd)/mozbuild-state"
+unset CC CXX CFLAGS CXXFLAGS LDFLAGS CPPFLAGS
+export CFLAGS="-w" CXXFLAGS="-w"
+MOZCONFIG="$SMDIR/mozconfig" \
+MOZCONFIG_OPTIONS="--target=$TARGET --enable-ios-target=$IOS_MIN --with-ios-sdk=$SDK \
+	--enable-portable-baseline-interp --disable-jit --disable-shared-js --enable-optimize --disable-debug" \
+BUILD_DIR="build-release" \
+	./mach build -j"${JOBS:-$(sysctl -n hw.ncpu)}"
+
+mkdir -p "$OUT/lib" "$OUT/include/mozjs-release"
+cp -R -L build-release/dist/include/* "$OUT/include/mozjs-release/"
+rm -f "$OUT/include/mozjs-release/"{zlib.h,zconf.h,mozzconf.h}
+cp -L build-release/js/src/build/libjs_static.a "$OUT/lib/libmozjs128-release.a"
+rust_path="build-release/$(grep jsrust build-release/js/src/build/backend.mk | cut -d / -f 2-)"
+cp -L "$rust_path" "$OUT/lib/libmozjs128-rust.a"
+ls -la "$OUT/lib/"libmozjs128*
+touch "$OUT/.built-spidermonkey"
