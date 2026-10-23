@@ -19,6 +19,10 @@ jobs:
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror touch/TouchGestures.cpp touch/test_TouchGestures.cpp -o test_touch
           ./test_touch
+      - name: Fetch pinned 0 A.D. sources and apply the iOS patches
+        run: |
+          scripts/fetch-0ad.sh
+          scripts/apply-0ad-patches.sh
 
   deps:
     runs-on: macos-15
