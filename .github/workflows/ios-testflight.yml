@@ -29,11 +29,16 @@ env:
   TEAM_ID: 38PT254HDZ
   BUNDLE_ID: ${{ inputs.bundle_id || 'es.verkvest.zeroad' }}
   APP_VERSION: ${{ inputs.version || '0.1.0' }}
+  # tag testflight-engine-* (or input app=engine) uploads the real engine built by ios-build; else the touch demo
+  APP_KIND: ${{ (inputs.app == 'engine' || startsWith(github.ref_name, 'testflight-engine')) && 'engine' || 'touchdemo' }}
 
 jobs:
   testflight:
     runs-on: macos-15
     timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
     env:
       PLATFORM: iphoneos
       HAS_KEY: ${{ secrets.APPSTORE_API_KEY_P8 != '' && secrets.APPSTORE_API_KEY_ID != '' && secrets.APPSTORE_API_ISSUER_ID != '' }}
@@ -53,14 +58,14 @@ jobs:
           [ -n "$X" ] && sudo xcode-select -s "$X"
           xcodebuild -version
       - name: Cache deps
-        if: env.HAS_KEY == 'true'
+        if: env.HAS_KEY == 'true' && env.APP_KIND == 'touchdemo'
         uses: actions/cache@v4
         with:
           path: build/deps/iphoneos
           key: deps-iphoneos-${{ hashFiles('ios/build-ios-deps.sh', 'ios/env.sh') }}
           restore-keys: deps-iphoneos-
       - name: Build SDL2 for device
-        if: env.HAS_KEY == 'true'
+        if: env.HAS_KEY == 'true' && env.APP_KIND == 'touchdemo'
         run: ios/build-ios-deps.sh sdl2
       - name: Install API key
         if: env.HAS_KEY == 'true'
@@ -79,7 +84,7 @@ jobs:
           chmod 600 "$KEYFILE"
           echo "KEYFILE=$KEYFILE" >> "$GITHUB_ENV"
       - name: Generate Xcode project
-        if: env.HAS_KEY == 'true'
+        if: env.HAS_KEY == 'true' && env.APP_KIND == 'touchdemo'
         run: |
           . ios/env.sh
           cmake -S touchdemo -B build/xcode -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
@@ -89,7 +94,7 @@ jobs:
             -DAPP_VERSION="$APP_VERSION" -DAPP_BUILD="${{ github.run_number }}" \
             -DCMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM="$TEAM_ID" -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_STYLE=Automatic
       - name: Archive (unsigned; the team has no devices, so no development profile)
-        if: env.HAS_KEY == 'true'
+        if: env.HAS_KEY == 'true' && env.APP_KIND == 'touchdemo'
         env:
           APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
           APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
@@ -105,6 +110,22 @@ jobs:
           # must be an iOS app archive (Products/Applications/*.app + ApplicationProperties), not a generic one
           find "$RUNNER_TEMP/ZeroAD.xcarchive" -maxdepth 3 | head -20
           /usr/libexec/PlistBuddy -c Print "$RUNNER_TEMP/ZeroAD.xcarchive/Info.plist"
+      - name: Engine archive from the latest ios-build device artifact
+        if: env.HAS_KEY == 'true' && env.APP_KIND == 'engine'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -vi beta | sort -V | tail -1)
+          RUN=$(gh run list -R "$GITHUB_REPOSITORY" -w ios-build.yml -b feature/ios-prototype -s completed -L 20 --json databaseId -q '.[].databaseId' | while read r; do
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$r/artifacts" -q '.artifacts[]|select(.name=="engine-iphoneos-log" and .expired==false)|.name' | grep -q . && { echo $r; break; }; done)
+          [ -n "$RUN" ] || { echo "::error::no ios-build run with engine-iphoneos-log"; exit 1; }
+          echo "using ios-build run $RUN"
+          gh run download "$RUN" -R "$GITHUB_REPOSITORY" -n engine-iphoneos-log -D "$RUNNER_TEMP/eng"
+          Z=$(find "$RUNNER_TEMP/eng" -name 'Pyrogenesis-iphoneos.app.zip' | head -1)
+          [ -n "$Z" ] || { echo "::error::device engine app not in artifact (engine not linked for iphoneos)"; cat "$RUNNER_TEMP"/eng/engine-summary.txt 2>/dev/null | head -60; exit 1; }
+          ditto -x -k "$Z" "$RUNNER_TEMP/engapp"
+          scripts/make-engine-xcarchive.sh "$RUNNER_TEMP/engapp/Pyrogenesis.app" "$RUNNER_TEMP/ZeroAD.xcarchive" \
+            "$BUNDLE_ID" "$APP_VERSION" "${{ github.run_number }}"
       - name: Export with App Store distribution signing (cloud-managed via API key) + upload to TestFlight
         if: env.HAS_KEY == 'true'
         env:
