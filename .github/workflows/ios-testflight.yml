@@ -128,7 +128,13 @@ jobs:
             -authenticationKeyID "$APPSTORE_API_KEY_ID" -authenticationKeyIssuerID "$APPSTORE_API_ISSUER_ID"
           ls -la "$RUNNER_TEMP/export"
           xcrun altool --upload-app -t ios -f "$RUNNER_TEMP"/export/*.ipa \
-            --apiKey "$APPSTORE_API_KEY_ID" --apiIssuer "$APPSTORE_API_ISSUER_ID"
+            --apiKey "$APPSTORE_API_KEY_ID" --apiIssuer "$APPSTORE_API_ISSUER_ID" 2>&1 | tee "$RUNNER_TEMP/upload.log"
+          # altool may exit 0 on errors; fail explicitly
+          if grep -q "ERROR" "$RUNNER_TEMP/upload.log"; then
+            grep -q "Cannot determine the Apple ID" "$RUNNER_TEMP/upload.log" && \
+              echo "::error::No App Store Connect app record for $BUNDLE_ID yet (create it in App Store Connect → Apps → +)"
+            exit 1
+          fi
           echo "::notice::Uploaded $BUNDLE_ID $APP_VERSION (${{ github.run_number }}) to App Store Connect"
       - uses: actions/upload-artifact@v4
         if: always() && env.HAS_KEY == 'true'
