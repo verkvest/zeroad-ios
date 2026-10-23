@@ -12,12 +12,12 @@ concurrency:
 
 jobs:
   gesture-tests:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Host unit tests for the touch gesture layer
         run: |
-          clang++ -std=c++17 -Wall -Wextra -Werror touch/TouchGestures.cpp touch/test_TouchGestures.cpp -o test_touch
+          g++ -std=c++17 -Wall -Wextra -Werror touch/TouchGestures.cpp touch/test_TouchGestures.cpp -o test_touch
           ./test_touch
 
   deps:
