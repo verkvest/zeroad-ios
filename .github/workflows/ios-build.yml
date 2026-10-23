@@ -161,6 +161,12 @@ jobs:
           mkdir -p build/deps build/mozjs
           tar -C build/deps -xzf deps-${PLATFORM}.tar.gz
           tar -C build/mozjs -xzf mozjs-${PLATFORM}.tar.gz
+      - name: Xcode 26 for the device build (App Store requires the iOS 26 SDK)
+        if: matrix.platform == 'iphoneos'
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -vi beta | sort -V | tail -1)
+          [ -n "$X" ] && sudo xcode-select -s "$X"
+          xcodebuild -version
       - name: Compile pyrogenesis for iOS (make -k, collect errors)
         run: ios/build-engine.sh
       - uses: actions/cache@v4
