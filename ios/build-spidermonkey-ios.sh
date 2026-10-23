@@ -53,10 +53,21 @@ cp -L "$rust_path" "$OUT/lib/libmozjs128-rust.a"
 # static js needs mozglue (moz_arena_*, MOZ_Crash*, MozWalkTheStack, memalign shim)
 echo "--- static archives in build tree ---"
 find build-release -name '*.a' -not -path '*/deps/*' -not -path '*/rust/*' | sed 's/^/  /' | head -50
-glue="$(find build-release -name '*.a' \( -path '*mozglue*' -o -path '*memory/build*' -o -path '*memory/mozalloc*' \) -not -path '*/deps/*' | sort -u)"
-echo "glue: $glue"
-if [ -n "$glue" ]; then
-	xcrun libtool -static -o "$OUT/lib/libmozjs128-glue.a" $glue
-fi
+# In a static (non-shared-js) build mozglue/memory are left as loose objects for the final link.
+glue_objs="$(find build-release/mozglue build-release/memory -name '*.o' -not -path '*/test*' -not -path '*/gtest/*' 2>/dev/null | sort -u)"
+echo "glue objects:"; echo "$glue_objs" | sed 's/^/  /'
+cat >memalign_shim.c <<'C'
+#include <stdlib.h>
+/* iOS libc has no memalign(); mozjs falls back to it when jemalloc is disabled. */
+void *memalign(size_t alignment, size_t size) {
+	void *p = NULL;
+	if (alignment < sizeof(void *)) alignment = sizeof(void *);
+	return posix_memalign(&p, alignment, size) == 0 ? p : NULL;
+}
+C
+xcrun --sdk "$PLATFORM" clang -isysroot "$SDK" -target "arm64-apple-ios$IOS_MIN$([ "$PLATFORM" = iphonesimulator ] && echo -simulator)" \
+	-O2 -c memalign_shim.c -o memalign_shim.o
+glue_a="$(find build-release -name 'libwrappers.a' -path '*mozglue*' | head -1)"
+xcrun libtool -static -o "$OUT/lib/libmozjs128-glue.a" $glue_objs memalign_shim.o $glue_a
 ls -la "$OUT/lib/"libmozjs128*
 touch "$OUT/.built-spidermonkey"
