@@ -116,13 +116,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -vi beta | sort -V | tail -1)
-          RUN=$(gh run list -R "$GITHUB_REPOSITORY" -w ios-build.yml -b feature/ios-prototype -s completed -L 20 --json databaseId -q '.[].databaseId' | while read r; do
-            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$r/artifacts" -q '.artifacts[]|select(.name=="engine-iphoneos-log" and .expired==false)|.name' | grep -q . && { echo $r; break; }; done)
-          [ -n "$RUN" ] || { echo "::error::no ios-build run with engine-iphoneos-log"; exit 1; }
-          echo "using ios-build run $RUN"
-          gh run download "$RUN" -R "$GITHUB_REPOSITORY" -n engine-iphoneos-log -D "$RUNNER_TEMP/eng"
-          Z=$(find "$RUNNER_TEMP/eng" -name 'Pyrogenesis-iphoneos.app.zip' | head -1)
-          [ -n "$Z" ] || { echo "::error::device engine app not in artifact (engine not linked for iphoneos)"; cat "$RUNNER_TEMP"/eng/engine-summary.txt 2>/dev/null | head -60; exit 1; }
+          # newest ios-build run whose device artifact actually contains the packaged engine app
+          Z=""
+          for r in $(gh run list -R "$GITHUB_REPOSITORY" -w ios-build.yml -b feature/ios-prototype -L 15 --json databaseId -q '.[].databaseId'); do
+            rm -rf "$RUNNER_TEMP/eng"
+            gh run download "$r" -R "$GITHUB_REPOSITORY" -n engine-iphoneos-log -D "$RUNNER_TEMP/eng" 2>/dev/null || continue
+            Z=$(find "$RUNNER_TEMP/eng" -name 'Pyrogenesis-iphoneos.app.zip' | head -1)
+            [ -n "$Z" ] && { echo "using ios-build run $r"; break; }
+          done
+          [ -n "$Z" ] || { echo "::error::no ios-build run with a packaged device engine app"; exit 1; }
           ditto -x -k "$Z" "$RUNNER_TEMP/engapp"
           scripts/make-engine-xcarchive.sh "$RUNNER_TEMP/engapp/Pyrogenesis.app" "$RUNNER_TEMP/ZeroAD.xcarchive" \
             "$BUNDLE_ID" "$APP_VERSION" "${{ github.run_number }}"
