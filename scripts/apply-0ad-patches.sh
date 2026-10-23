@@ -4,6 +4,7 @@ set -eo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT/build/0ad"
 git checkout -q -- source build 2>/dev/null || true
+git clean -fdq -- source
 # Shared, engine-independent gesture recognizer (also used by the touch demo app).
 { echo '#include "precompiled.h"'; echo; cat "$ROOT/touch/TouchGestures.cpp"; } > source/ps/TouchGestures.cpp
 cp "$ROOT/touch/TouchGestures.h" source/ps/TouchGestures.h

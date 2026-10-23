@@ -69,8 +69,8 @@ RC=$?
 	BIN="$(find ../../../binaries/system -maxdepth 1 -name 'pyrogenesis*' -type f 2>/dev/null | head -1)"
 	echo "pyrogenesis binary: ${BIN:-not linked}"
 	[ -n "$BIN" ] && file "$BIN" && ls -la "$BIN"
-	echo "undefined symbols: $(grep -cE '^ +"_' "$LOG")"
-	grep -A1 -E '^ +"_' "$LOG" | grep -E '^ +"_' | sed -E 's/, referenced from.*//' | sort -u | head -60
+	echo "undefined symbols: $(grep -cE '^  "' "$LOG")"
+	grep -E '^  "' "$LOG" | sed -E 's/, referenced from.*//' | sort -u | head -60
 	echo "--- errors by directory ---"
 	grep -E '^[^ ]+\.(cpp|mm|c|h):[0-9]+:[0-9]+: (fatal )?error:' "$LOG" | cut -d: -f1 | sed -E 's|.*/source/||; s|/[^/]+$||' | sort | uniq -c | sort -rn | head -40
 	echo "--- first distinct errors ---"
