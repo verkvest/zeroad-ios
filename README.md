@@ -49,10 +49,20 @@ touchdemo/                    SDL2-приложение ZeroADTouch.app — де
 
 ## Что не работает / блокеры
 
-1. **Сам движок (pyrogenesis) под iOS ещё не собирается целиком.** Job `engine` (continue-on-error)
-   компилирует его и выкладывает лог `engine-iphonesimulator-log` со сводкой ошибок. Ожидаемые проблемы:
-   - `source/lib/sysdep/os/osx/*` использует AppKit/Cocoa и CoreServices FSEvents — нужен слой `sysdep/os/ios`
-     (UIKit: пути бандла, курсор-заглушка, dir_watch-заглушка, сведения о системе);
+0. **CI остановлен биллингом GitHub** (с 24.10.2026 00:13 Europe/Madrid): macOS-задачи не стартуют —
+   «recent account payments have failed or your spending limit needs to be increased». Нужно поправить оплату/лимит
+   в Settings → Billing & plans аккаунта verkvest (или сделать репозиторий публичным — тогда macOS-минуты бесплатны).
+1. **Движок (pyrogenesis) под iOS Simulator компилируется полностью** (505 объектных файлов, 0 ошибок компиляции,
+   патч `patches/0ad/0002-ios-build.patch`), но **ещё не слинкован**: в последнем прогоне оставались неразрешённые
+   символы mfbt (double_conversion, SHA1Sum, RandomUint64…), `startNewAtlasProcess` и одна инстанциация fmt —
+   исправления (mfbt в `libmozjs128-glue.a`, `sysdep/os/ios/ios_stubs.cpp`) запушены, но не проверены из-за биллинга.
+   Сборка движка для устройства (iphoneos) и SpiderMonkey для iphoneos ещё не добавлены в CI.
+   Job `engine` (continue-on-error)
+   компилирует его, пытается упаковать `Pyrogenesis.app` с мини-модом `mod` и запустить в симуляторе
+   (`scripts/package-engine-app.sh`, `scripts/sim-launch.py`), лог — артефакт `engine-iphonesimulator-log`.
+   Оставшиеся задачи:
+   - AppKit/FSEvents уже отключены для iOS (заглушки dir_watch/atlas), но нужна проверка путей бандла,
+     курсора и сведений о системе в рантайме;
    - premake-скрипты 0ad ориентированы на macOS (ConsoleApp, `-framework OpenGL/Cocoa`); для .app нужен
      отдельный таргет (Xcode/CMake) с Info.plist и iOS-фреймворками;
    - рендер: в 0.28 есть GL-бэкенд с `--gles` (OpenGL ES устарел на iOS, но работает) и Vulkan-бэкенд;
