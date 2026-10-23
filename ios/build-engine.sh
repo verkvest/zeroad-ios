@@ -43,7 +43,7 @@ SM="$Z/libraries/source/spidermonkey"
 mkdir -p "$SM/lib"
 MOZJS_PREFIX="${MOZJS_PREFIX:-$ROOT/build/mozjs/$PLATFORM}"
 ln -sfn "$MOZJS_PREFIX/include/mozjs-release" "$SM/include-release"
-cp -f "$MOZJS_PREFIX"/lib/libmozjs128-*.a "$SM/lib/" 2>/dev/null || echo "WARNING: SpiderMonkey for iOS not found in $MOZJS_PREFIX"
+cp -f "$MOZJS_PREFIX"/lib/*.a "$SM/lib/" 2>/dev/null || echo "WARNING: SpiderMonkey for iOS not found in $MOZJS_PREFIX"
 
 # 3) generate makefiles
 cd "$Z/build/premake"

@@ -1,5 +1,5 @@
 diff --git a/build/premake/premake5.lua b/build/premake/premake5.lua
-index 357b08f..21442d6 100644
+index 357b08f..581664d 100644
 --- a/build/premake/premake5.lua
 +++ b/build/premake/premake5.lua
 @@ -41,6 +41,7 @@ print("")
@@ -33,12 +33,16 @@ index 357b08f..21442d6 100644
  
  	rtti "off"
  
-@@ -1235,7 +1243,14 @@ function setup_main_exe ()
+@@ -1235,7 +1243,18 @@ function setup_main_exe ()
  	elseif os.istarget("macosx") then
  
  		links { "pthread" }
 -		links { "ApplicationServices.framework", "Cocoa.framework", "CoreFoundation.framework" }
 +		if _OPTIONS["ios"] then
++			-- SDL provides main() (UIApplicationMain) on iOS; static SpiderMonkey needs mozglue
++			links { "SDL2main", "mozjs128-glue" }
++			-- BrowserEngineCore (iOS 17.4+) is referenced by mozglue's JIT-page helpers, unused without JIT
++			linkoptions { "-Wl,-weak_framework,BrowserEngineCore" }
 +			links { "Foundation.framework", "UIKit.framework", "CoreFoundation.framework", "OpenGLES.framework",
 +				"QuartzCore.framework", "CoreAudio.framework", "AudioToolbox.framework", "AVFoundation.framework",
 +				"CoreGraphics.framework", "CoreVideo.framework", "Metal.framework", "GameController.framework",
@@ -49,7 +53,7 @@ index 357b08f..21442d6 100644
  
  		architecture(macos_arch)
  		buildoptions { "-arch " .. macos_arch }
-@@ -1670,7 +1685,9 @@ if not _OPTIONS["without-atlas"] then
+@@ -1670,7 +1689,9 @@ if not _OPTIONS["without-atlas"] then
  	setup_atlas_frontends()
  end
  

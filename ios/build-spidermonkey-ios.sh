@@ -50,5 +50,13 @@ cp -L build-release/js/src/build/libjs_static.a "$OUT/lib/libmozjs128-release.a"
 rust_path="$(find build-release -name libjsrust.a -not -path "*/deps/*" | head -1)"
 echo "jsrust: $rust_path"
 cp -L "$rust_path" "$OUT/lib/libmozjs128-rust.a"
+# static js needs mozglue (moz_arena_*, MOZ_Crash*, MozWalkTheStack, memalign shim)
+echo "--- static archives in build tree ---"
+find build-release -name '*.a' -not -path '*/deps/*' -not -path '*/rust/*' | sed 's/^/  /' | head -50
+glue="$(find build-release -name '*.a' \( -path '*mozglue*' -o -path '*memory/build*' -o -path '*memory/mozalloc*' \) -not -path '*/deps/*' | sort -u)"
+echo "glue: $glue"
+if [ -n "$glue" ]; then
+	xcrun libtool -static -o "$OUT/lib/libmozjs128-glue.a" $glue
+fi
 ls -la "$OUT/lib/"libmozjs128*
 touch "$OUT/.built-spidermonkey"
