@@ -13,7 +13,8 @@ Z="$ROOT/build/0ad"
 # 1) host premake (built natively, not for iOS)
 (
 	cd "$Z/libraries/source/premake-core"
-	env -u CC -u CXX -u CFLAGS -u CXXFLAGS -u LDFLAGS -u CPPFLAGS -u AR -u RANLIB JOBS="-j$JOBS" ./build.sh
+	# premake derives its version from `git describe`; stop it from seeing 0ad's repo (v0.28.0)
+	env GIT_CEILING_DIRECTORIES="$PWD" -u CC -u CXX -u CFLAGS -u CXXFLAGS -u LDFLAGS -u CPPFLAGS -u AR -u RANLIB JOBS="-j$JOBS" ./build.sh
 ) || { echo "premake build failed"; exit 1; }
 
 # 2) present our iOS deps in the layout the macOS premake scripts expect
@@ -45,7 +46,7 @@ cp -f "$MOZJS_PREFIX"/lib/libmozjs128-*.a "$SM/lib/" 2>/dev/null || echo "WARNIN
 # 3) generate makefiles
 cd "$Z/build/premake"
 "$Z/libraries/source/premake-core/bin/premake5" --file=premake5.lua --outpath=../workspaces/ios \
-	--gles --without-nvtt --without-lobby --without-miniupnpc --without-atlas --without-tests --without-pch \
+	--gles --without-nvtt --without-lobby --without-miniupnpc --without-atlas --without-tests --without-pch --without-dap-interface \
 	gmake || { echo "premake failed"; exit 1; }
 
 # 4) compile, keep going to collect every error
