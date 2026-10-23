@@ -1,0 +1,113 @@
+# Optional: sign + upload the current iOS app to TestFlight.
+# Manual only (workflow_dispatch). Skips cleanly (green) when secrets are absent.
+#
+# Required repo secrets (set them in GitHub → Settings → Secrets → Actions; never commit them):
+#   APPSTORE_API_KEY_P8      – contents of AuthKey_<KEYID>.p8, base64-encoded (base64 -i AuthKey_X.p8)
+#   APPSTORE_API_KEY_ID      – e.g. the "Codemagic" key id
+#   APPSTORE_API_ISSUER_ID   – App Store Connect issuer id
+# The key needs the Admin or App Manager role so that Xcode can create the
+# distribution certificate + provisioning profile automatically (cloud signing).
+# The App Store Connect app record for the bundle id must exist before the first upload.
+name: ios-testflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      bundle_id:
+        description: Bundle identifier
+        default: es.verkvest.zeroad
+      version:
+        description: Marketing version
+        default: 0.1.0
+
+env:
+  TEAM_ID: 38PT254HDZ
+
+jobs:
+  testflight:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    env:
+      PLATFORM: iphoneos
+      HAS_KEY: ${{ secrets.APPSTORE_API_KEY_P8 != '' && secrets.APPSTORE_API_KEY_ID != '' && secrets.APPSTORE_API_ISSUER_ID != '' }}
+    steps:
+      - name: Check secrets
+        run: |
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::notice::App Store Connect API key secrets are not set – skipping signing and upload."
+          fi
+      - uses: actions/checkout@v4
+        if: env.HAS_KEY == 'true'
+      - name: Tools
+        if: env.HAS_KEY == 'true'
+        run: brew install ninja || true
+      - name: Cache deps
+        if: env.HAS_KEY == 'true'
+        uses: actions/cache@v4
+        with:
+          path: build/deps/iphoneos
+          key: deps-iphoneos-${{ hashFiles('ios/build-ios-deps.sh', 'ios/env.sh') }}
+          restore-keys: deps-iphoneos-
+      - name: Build SDL2 for device
+        if: env.HAS_KEY == 'true'
+        run: ios/build-ios-deps.sh sdl2
+      - name: Install API key
+        if: env.HAS_KEY == 'true'
+        env:
+          APPSTORE_API_KEY_P8: ${{ secrets.APPSTORE_API_KEY_P8 }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          KEYFILE=~/.appstoreconnect/private_keys/AuthKey_${APPSTORE_API_KEY_ID}.p8
+          # accept either raw PEM or base64 of it; never echo the key
+          if printf '%s' "$APPSTORE_API_KEY_P8" | grep -q "BEGIN PRIVATE KEY"; then
+            printf '%s\n' "$APPSTORE_API_KEY_P8" > "$KEYFILE"
+          else
+            printf '%s' "$APPSTORE_API_KEY_P8" | base64 --decode > "$KEYFILE"
+          fi
+          chmod 600 "$KEYFILE"
+          echo "KEYFILE=$KEYFILE" >> "$GITHUB_ENV"
+      - name: Generate Xcode project
+        if: env.HAS_KEY == 'true'
+        run: |
+          . ios/env.sh
+          cmake -S touchdemo -B build/xcode -G Xcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+            -DCMAKE_PREFIX_PATH="$DEPS_PREFIX" -DAPP_BUNDLE_ID="${{ inputs.bundle_id }}" \
+            -DAPP_VERSION="${{ inputs.version }}" -DAPP_BUILD="${{ github.run_number }}" \
+            -DCMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM="$TEAM_ID" -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_STYLE=Automatic
+      - name: Archive (cloud-managed signing via API key)
+        if: env.HAS_KEY == 'true'
+        env:
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+        run: |
+          xcodebuild -project build/xcode/zeroad_touchdemo.xcodeproj -scheme touchdemo -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/ZeroAD.xcarchive" \
+            -allowProvisioningUpdates -authenticationKeyPath "$KEYFILE" \
+            -authenticationKeyID "$APPSTORE_API_KEY_ID" -authenticationKeyIssuerID "$APPSTORE_API_ISSUER_ID" \
+            archive | tail -100
+          test ${PIPESTATUS[0]} -eq 0
+      - name: Export + upload to TestFlight
+        if: env.HAS_KEY == 'true'
+        env:
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/ZeroAD.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates -authenticationKeyPath "$KEYFILE" \
+            -authenticationKeyID "$APPSTORE_API_KEY_ID" -authenticationKeyIssuerID "$APPSTORE_API_ISSUER_ID"
+      - name: Cleanup key
+        if: always()
+        run: rm -rf ~/.appstoreconnect/private_keys
