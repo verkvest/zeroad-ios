@@ -22,8 +22,10 @@ cp -R "$Z/binaries/data/config" "$Z/binaries/data/l10n" "$APP/data/"
 DATA_URL="${ZEROAD_DATA_URL:-https://releases.wildfiregames.com/0ad-0.28.0-unix-data.tar.xz}"
 mkdir -p "$ROOT/build/data"
 if [ ! -f "$ROOT/build/data/mod.zip" ]; then
-	curl -sSfL --retry 3 "$DATA_URL" | xz -dc | \
-		tar -x -q -C "$ROOT/build/data" --strip-components 4 "0ad-0.28.0/binaries/data/mods/mod/mod.zip" || true
+	# macOS bsdtar decompresses xz itself; -q (fast read) stops after mod.zip, so curl then gets EPIPE (ignored)
+	curl -sSL --retry 3 "$DATA_URL" | \
+		tar -xJ -q -v -C "$ROOT/build/data" --strip-components 4 -f - "0ad-0.28.0/binaries/data/mods/mod/mod.zip" || true
+	ls -la "$ROOT/build/data" || true
 fi
 [ -f "$ROOT/build/data/mod.zip" ] || { echo "mod.zip download failed"; exit 1; }
 mkdir -p "$APP/data/mods/mod"; cp "$ROOT/build/data/mod.zip" "$APP/data/mods/mod/"
