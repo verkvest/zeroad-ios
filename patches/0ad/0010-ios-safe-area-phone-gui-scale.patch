@@ -92,7 +92,7 @@ index b76d874..9989e31 100644
  
  void CGUI::SendFocusMessage(EGUIMessageType msgType)
 diff --git a/source/ps/VideoMode.cpp b/source/ps/VideoMode.cpp
-index 530d17d..089b5c1 100644
+index 530d17d..05dc93a 100644
 --- a/source/ps/VideoMode.cpp
 +++ b/source/ps/VideoMode.cpp
 @@ -58,6 +58,12 @@
@@ -119,7 +119,7 @@ index 530d17d..089b5c1 100644
  	Uint32 flags = 0;
  	if (fullscreen)
  	{
-@@ -522,13 +532,23 @@ bool CVideoMode::SetVideoMode(int w, int h, int bpp, bool fullscreen)
+@@ -522,13 +532,33 @@ bool CVideoMode::SetVideoMode(int w, int h, int bpp, bool fullscreen)
  #if OS_IOS
  	// iOS: render and lay out the GUI in drawable pixels (Retina), touches are converted to pixels too.
  	SDL_GL_GetDrawableSize(m_Window, &m_CurrentW, &m_CurrentH);
@@ -132,21 +132,31 @@ index 530d17d..089b5c1 100644
 +		// GUI of ios.gui.minwidth x ios.gui.minheight (the session HUD needs ~1024 wide).
 +		const float safeW = m_CurrentW - m_InsetPx[0] - m_InsetPx[2];
 +		const float safeH = m_CurrentH - m_InsetPx[1] - m_InsetPx[3];
-+		const float minW = std::max(800.0f, g_ConfigDB.Get("ios.gui.minwidth", 1100.0f));
-+		const float minH = std::max(480.0f, g_ConfigDB.Get("ios.gui.minheight", 600.0f));
++		// Tablets (short side >= 600pt, e.g. iPad): only a moderate enlargement, a larger logical GUI.
++		int pointsW = 0, pointsH = 0;
++		SDL_GetWindowSize(m_Window, &pointsW, &pointsH);
++		const bool tablet = std::min(pointsW, pointsH) >= 600;
++		g_ConfigDB.SetValueString(CFG_SYSTEM, "ios.device.tablet", tablet ? "true" : "false");
++		const float minW = tablet ?
++			std::max(800.0f, g_ConfigDB.Get("ios.gui.tablet.minwidth", 1400.0f)) :
++			std::max(800.0f, g_ConfigDB.Get("ios.gui.minwidth", 1100.0f));
++		const float minH = tablet ?
++			std::max(480.0f, g_ConfigDB.Get("ios.gui.tablet.minheight", 880.0f)) :
++			std::max(480.0f, g_ConfigDB.Get("ios.gui.minheight", 600.0f));
 +		m_Scale = std::max(1.0f, std::min(safeH / minH, safeW / minW));
  		m_Scale = std::floor(m_Scale * 20.0f) / 20.0f;
  	}
 -	LOGMESSAGE("iOS: drawable %dx%d, GUI scale %.2f", m_CurrentW, m_CurrentH, m_Scale);
-+	LOGMESSAGE("iOS: drawable %dx%d, GUI scale %.2f, logical GUI %.0fx%.0f", m_CurrentW, m_CurrentH, m_Scale,
-+		(m_CurrentW - m_InsetPx[0] - m_InsetPx[2]) / m_Scale, (m_CurrentH - m_InsetPx[1] - m_InsetPx[3]) / m_Scale);
++	LOGMESSAGE("iOS: drawable %dx%d, GUI scale %.2f, logical GUI %.0fx%.0f, tablet %s", m_CurrentW, m_CurrentH, m_Scale,
++		(m_CurrentW - m_InsetPx[0] - m_InsetPx[2]) / m_Scale, (m_CurrentH - m_InsetPx[1] - m_InsetPx[3]) / m_Scale,
++		g_ConfigDB.Get("ios.device.tablet", false) ? "yes" : "no");
 +	g_ConfigDB.SetValueString(CFG_SYSTEM, "ios.gui.scale", CStr::FromDouble(m_Scale));
 +	g_ConfigDB.SetValueString(CFG_SYSTEM, "ios.gui.insetleft", CStr::FromDouble(m_InsetPx[0] / m_Scale));
 +	g_ConfigDB.SetValueString(CFG_SYSTEM, "ios.gui.insettop", CStr::FromDouble(m_InsetPx[1] / m_Scale));
  #endif
  	m_CurrentBPP = bpp;
  
-@@ -745,6 +765,62 @@ float CVideoMode::GetScale() const
+@@ -745,6 +775,62 @@ float CVideoMode::GetScale() const
  	return m_Scale;
  }
  
@@ -209,7 +219,7 @@ index 530d17d..089b5c1 100644
  bool CVideoMode::SetFullscreen(bool fullscreen)
  {
  	// This might get called before initialisation by psDisplayError;
-@@ -829,7 +905,10 @@ void CVideoMode::UpdateRenderer(int w, int h)
+@@ -829,7 +915,10 @@ void CVideoMode::UpdateRenderer(int w, int h)
  {
  #if OS_IOS
  	if (g_VideoMode.GetWindow())

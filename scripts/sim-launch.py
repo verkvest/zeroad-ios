@@ -14,7 +14,7 @@ def run(*a, check=False, **kw):
     return subprocess.run(list(a), check=check, text=True, **kw)
 
 devs = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"], text=True))["devices"]
-cands = sorted((rt, d["name"], d["udid"]) for rt, lst in devs.items() if "iOS" in rt for d in lst if d["name"].startswith("iPhone"))
+cands = sorted((rt, d["name"], d["udid"]) for rt, lst in devs.items() if "iOS" in rt for d in lst if d["name"].startswith("iPad" if "iPad" in os.environ.get("SIM_DEVICE", "") else "iPhone"))
 # Prefer a current notched/Dynamic Island phone (safe areas), e.g. "iPhone 17 Pro"; SIM_DEVICE overrides.
 import re
 pat = re.compile(os.environ.get("SIM_DEVICE", r"^iPhone \d+ Pro$"))

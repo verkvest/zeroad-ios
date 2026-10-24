@@ -190,6 +190,14 @@ jobs:
         env:
           SHOT_EVERY: "10"
         run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out/skirmish 300 -conf=ios.autoquickplay:true -conf=ios.touchtest:true
+      - name: iPad (landscape) - main menu, Quick Play, HUD, dialogs, options
+        if: steps.pkg.outcome == 'success' && matrix.platform == 'iphonesimulator'
+        continue-on-error: true
+        timeout-minutes: 20
+        env:
+          SHOT_EVERY: "10"
+          SIM_DEVICE: "^iPad (Air|Pro) 11"
+        run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out/ipad 230 -conf=ios.autoquickplay:true -conf=ios.touchtest:true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
