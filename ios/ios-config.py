@@ -24,6 +24,9 @@ SETTINGS = {
     ("", "materialmgr.quality"): "2.0",
     ("", "pauseonfocusloss"): "true",
     ("", "particles"): "false",
+    # Phones: start closer so units are bigger on screen (desktop default 120).
+    ("view", "zoom.default"): "85",
+    ("sound", "musicgain"): "0.35",
     # Phones: no-JIT SpiderMonkey makes the AI expensive; default new AIs to "easy".
     ("gui.gamesetup", "aidifficulty"): "1",
     ("gui.gamesetup", "aibehavior"): '"balanced"',
