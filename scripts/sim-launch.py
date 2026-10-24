@@ -15,7 +15,11 @@ def run(*a, check=False, **kw):
 
 devs = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"], text=True))["devices"]
 cands = sorted((rt, d["name"], d["udid"]) for rt, lst in devs.items() if "iOS" in rt for d in lst if d["name"].startswith("iPhone"))
-runtime, name, udid = cands[-1]
+# Prefer a current notched/Dynamic Island phone (safe areas), e.g. "iPhone 17 Pro"; SIM_DEVICE overrides.
+import re
+pat = re.compile(os.environ.get("SIM_DEVICE", r"^iPhone \d+ Pro$"))
+pref = [c for c in cands if pat.search(c[1])]
+runtime, name, udid = (sorted(pref, key=lambda c: (c[0], int(re.sub(r"\D", "", c[1]) or 0)))[-1] if pref else cands[-1])
 print(f"Using simulator {name} ({runtime})", flush=True)
 run("xcrun", "simctl", "boot", udid)
 run("xcrun", "simctl", "bootstatus", udid, "-b", check=True)

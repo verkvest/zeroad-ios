@@ -49,7 +49,7 @@ index 810f493..5f9ff9c 100644
 +	// 1. box-select everything around the screen center (one-finger drag)
 +	drag(20.0, 1, 0.25f, 0.25f, 0.75f, 0.80f, 0.8, "box select (one-finger drag)");
 +	// 2. tap on the ground with units selected -> move order
-+	press(30.0, 0.85f, 0.35f, 0.08, "tap ground -> move order");
++	press(30.0, 0.70f, 0.35f, 0.08, "tap ground -> move order");
 +	// 3. long press -> right click order
 +	press(45.0, 0.15f, 0.70f, 0.9, "long press -> right click order");
 +	// 4. two-finger pan
