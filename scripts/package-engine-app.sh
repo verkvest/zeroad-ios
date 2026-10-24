@@ -42,6 +42,9 @@ if [ "${ZEROAD_ENGINE_ONLY:-0}" != 1 ]; then
 	"dependencies": []
 }
 JSON
+	python3 "$ROOT/ios/make-ios-mod.py" "$D/public-mobile.zip" "$APP/data/mods/ios"
+else
+	sed -i '' -e 's/^enabledmods = .*/enabledmods = "mod"/' "$APP/data/config/default.cfg"
 fi
 cp "$ROOT/ios/CREDITS.txt" "$APP/CREDITS.txt"
 du -sh "$APP/data"

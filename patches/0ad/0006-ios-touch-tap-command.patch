@@ -1,0 +1,102 @@
+diff --git a/source/gui/Scripting/GuiScriptConversions.cpp b/source/gui/Scripting/GuiScriptConversions.cpp
+index 38737f8..f5ac088 100644
+--- a/source/gui/Scripting/GuiScriptConversions.cpp
++++ b/source/gui/Scripting/GuiScriptConversions.cpp
+@@ -17,6 +17,8 @@
+ 
+ #include "precompiled.h"
+ 
++#include "ps/TouchInput.h"
++
+ #include "scriptinterface/ScriptConversions.h"
+ 
+ #include "gui/CGUISprite.h"
+@@ -132,6 +134,7 @@ template<> void Script::ToJSVal<SDL_Event_>(const ScriptRequest& rq, JS::Mutable
+ 		SET(obj, "x", (int)val.ev.button.x);
+ 		SET(obj, "y", (int)val.ev.button.y);
+ 		SET(obj, "clicks", (int)val.ev.button.clicks);
++		SET(obj, "touchtap", val.ev.button.which == TOUCH_TAP_MOUSEID);
+ 		break;
+ 	}
+ 	case SDL_HOTKEYPRESS:
+diff --git a/source/ps/TouchInput.cpp b/source/ps/TouchInput.cpp
+index c1eee56..810f493 100644
+--- a/source/ps/TouchInput.cpp
++++ b/source/ps/TouchInput.cpp
+@@ -75,13 +75,14 @@ void CTouchInput::PushMouseMotion(float x, float y, bool leftDown)
+ 	SDL_PushEvent(&ev.ev);
+ }
+ 
+-void CTouchInput::PushMouseButton(int button, bool down, float x, float y)
++void CTouchInput::PushMouseButton(int button, bool down, float x, float y, unsigned int which, int clicks)
+ {
+ 	SDL_Event_ ev{};
+ 	ev.ev.type = down ? SDL_MOUSEBUTTONDOWN : SDL_MOUSEBUTTONUP;
++	ev.ev.button.which = which;
+ 	ev.ev.button.button = static_cast<Uint8>(button);
+ 	ev.ev.button.state = down ? SDL_PRESSED : SDL_RELEASED;
+-	ev.ev.button.clicks = 1;
++	ev.ev.button.clicks = static_cast<Uint8>(clicks);
+ 	ev.ev.button.x = static_cast<int>(x);
+ 	ev.ev.button.y = static_cast<int>(y);
+ 	SDL_PushEvent(&ev.ev);
+@@ -131,10 +132,20 @@ void CTouchInput::Frame()
+ 		switch (a.type)
+ 		{
+ 		case touch::Action::LeftClick:
++		{
++			// Double tap (select all units of the same type) = two taps close in time and space.
++			const double now = timer_Time();
++			const float slop = 40.f * ratio;
++			const bool dbl = m_LastTapTime >= 0.0 && now - m_LastTapTime < 0.40 &&
++				std::abs(a.x - m_LastTapX) < slop && std::abs(a.y - m_LastTapY) < slop;
++			const int clicks = dbl ? 2 : 1;
++			m_LastTapTime = dbl ? -1.0 : now;
++			m_LastTapX = a.x; m_LastTapY = a.y;
+ 			PushMouseMotion(a.x, a.y, false);
+-			PushMouseButton(SDL_BUTTON_LEFT, true, a.x, a.y);
+-			PushMouseButton(SDL_BUTTON_LEFT, false, a.x, a.y);
++			PushMouseButton(SDL_BUTTON_LEFT, true, a.x, a.y, TOUCH_TAP_MOUSEID, clicks);
++			PushMouseButton(SDL_BUTTON_LEFT, false, a.x, a.y, TOUCH_TAP_MOUSEID, clicks);
+ 			break;
++		}
+ 		case touch::Action::RightClick:
+ 			PushMouseMotion(a.x, a.y, false);
+ 			PushMouseButton(SDL_BUTTON_RIGHT, true, a.x, a.y);
+diff --git a/source/ps/TouchInput.h b/source/ps/TouchInput.h
+index f625b78..6c30dd3 100644
+--- a/source/ps/TouchInput.h
++++ b/source/ps/TouchInput.h
+@@ -23,9 +23,14 @@
+ 
+ struct SDL_Event_;
+ 
++// SDL mouse "which" id of the left clicks synthesized from finger taps; the GUI exposes
++// it to scripts as ev.touchtap so the session can treat a tap as a command.
++#define TOUCH_TAP_MOUSEID 0x0AD7A9u
++
+ /**
+  * Maps touch events (iOS / Android touchscreens) onto mouse events and camera movement:
+- *  - tap               -> left click
++ *  - tap               -> left click (double tap -> double click)
++ *  - long press        -> right click (order)
+  *  - one-finger drag   -> left-button drag (selection box)
+  *  - two-finger tap    -> right click (order)
+  *  - two-finger pan    -> camera pan (in game) / mouse wheel scroll (menus)
+@@ -51,13 +56,15 @@ public:
+ 
+ private:
+ 	void PushMouseMotion(float x, float y, bool leftDown);
+-	void PushMouseButton(int button, bool down, float x, float y);
++	void PushMouseButton(int button, bool down, float x, float y, unsigned int which = 0, int clicks = 1);
+ 	void PushWheel(int dy);
+ 	void Pan(float x, float y, float dx, float dy);
+ 
+ 	touch::Gestures m_Gestures;
+ 	float m_WheelAccum = 0.f;
+ 	float m_ScrollAccum = 0.f;
++	double m_LastTapTime = -1.0;
++	float m_LastTapX = 0.f, m_LastTapY = 0.f;
+ };
+ 
+ extern CTouchInput g_TouchInput;

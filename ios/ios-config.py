@@ -27,6 +27,7 @@ SETTINGS = {
     ("adaptivefps", "session"): "60",
     ("gui.splashscreen", "enable"): "false",
     ("gui.session", "dragdelta"): "12",
+    ("mod", "enabledmods"): '"mod public ios"',
 }
 
 path = sys.argv[1]
