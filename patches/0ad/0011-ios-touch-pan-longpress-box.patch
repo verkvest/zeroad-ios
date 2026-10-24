@@ -36,7 +36,7 @@ index 7c16807..a11dd34 100644
  	 * Returns the current screen coordinates of the cursor.
  	 */
 diff --git a/source/ps/TouchInput.cpp b/source/ps/TouchInput.cpp
-index 7bac72e..c3e483c 100644
+index 7bac72e..0ac6ae0 100644
 --- a/source/ps/TouchInput.cpp
 +++ b/source/ps/TouchInput.cpp
 @@ -21,6 +21,8 @@
@@ -119,15 +119,17 @@ index 7bac72e..c3e483c 100644
  	// 4. two-finger pan
  	s.push_back({60.0, SDL_FINGERDOWN, 1, 0.40f, 0.50f, "two-finger pan"});
  	s.push_back({60.02, SDL_FINGERDOWN, 2, 0.60f, 0.50f, nullptr});
-@@ -108,6 +150,7 @@ std::vector<TestTouch> MakeTouchTestScript()
+@@ -108,6 +150,9 @@ std::vector<TestTouch> MakeTouchTestScript()
  	press(90.0, 0.50f, 0.55f, 0.08, "tap center (select)");
  	press(100.0, 0.50f, 0.55f, 0.08, "double tap center");
  	press(100.2, 0.50f, 0.55f, 0.08, nullptr);
++	// 7. tap a tab of the Options page (opened by the toolbar self-test at 198 s): no tooltip
++	press(205.0, 0.177f, 0.187f, 0.08, "tap options tab (must not show a tooltip)");
 +	std::stable_sort(s.begin(), s.end(), [](const TestTouch& a, const TestTouch& b) { return a.t < b.t; });
  	return s;
  }
  
-@@ -147,6 +190,9 @@ void RunTouchTest()
+@@ -147,6 +192,9 @@ void RunTouchTest()
  		ev.tfinger.y = tt.y;
  		ev.tfinger.pressure = 1.f;
  		SDL_PushEvent(&ev);
@@ -137,7 +139,7 @@ index 7bac72e..c3e483c 100644
  	}
  }
  } // anonymous namespace
-@@ -252,14 +298,48 @@ void CTouchInput::Frame()
+@@ -252,14 +300,48 @@ void CTouchInput::Frame()
  			PushMouseButton(SDL_BUTTON_RIGHT, true, a.x, a.y);
  			PushMouseButton(SDL_BUTTON_RIGHT, false, a.x, a.y);
  			break;
