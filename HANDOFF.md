@@ -162,3 +162,11 @@ Updated: 2026-10-24 11:22 (Europe/Madrid)
   Command epic battles / Ancient RTS for iPhone and iPad. Poster frame suggestion: 00:00:15 (preview-*-poster.png). Check frames in shots/appstore/preview-frames/.
 - HUD fix: the build-grid page button ("1/2 >") is hidden when nothing is selected (ios_hud.js).
 - docs/appstore-listing.md: EN/ES subtitle, promo, description, keywords, screenshot captions with character counts.
+
+## Build 18 / home-screen name (2026-10-24 ~23:40 Madrid)
+- User saw hoplite icon + label "0 A.D.": that is build 16 (tag testflight-engine-11, icon came in 43dd9ca, DisplayName still "0 A.D."; its IPA was named "0 A.D..ipa").
+  Build 17 already had DisplayName "Bronze Legions" (IPA "Bronze Legions.ipa").
+- ios-testflight.yml now unzips the exported IPA and fails before upload unless CFBundleDisplayName == IOS_APP_TITLE.
+- testflight-engine-13 (dispatch run 40133851195, ios-build 40130705674 with HUD page-button fix) -> build 18:
+  IPA CFBundleDisplayName=Bronze Legions, CFBundleName=Bronze Legions; ASC VALID / IN_BETA_TESTING.
+- ASC listing uploads (screens/previews/localizations) still paused; nothing uploaded yet.
