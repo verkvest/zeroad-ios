@@ -28,6 +28,9 @@ SETTINGS = {
     ("gui.splashscreen", "enable"): "false",
     ("gui.session", "dragdelta"): "12",
     ("mod", "enabledmods"): '"mod public ios"',
+    # No mouse on a touchscreen: the synthesized cursor stays where the last tap was, so
+    # edge scrolling would pan the camera forever (it drove it into a map corner).
+    ("view", "scroll.mouse.detectdistance"): "0",
 }
 
 path = sys.argv[1]
