@@ -337,8 +337,8 @@ write("gui/options/options.js", ojs)
 gs = ZIP.read("gui/gamesetup/Pages/GameSetupPage/GameSetupPage.xml").decode("utf-8")
 for old, new, what in (
         ('name="topPanel" size="24 40 100%-24 336"', 'name="topPanel" size="8 36 100%-8 232"', "top panel"),
-        ('<object size="0 0 100%-416 100%">', '<object size="0 0 100%-310 100%">', "players"),
-        ('<object size="100%-402 0 100% 100%">', '<object size="100%-300 0 100% 100%">', "map preview"),
+        ('<object size="0 0 100%-416 100%">', '<object size="0 0 100%-282 100%">', "players"),
+        ('<object size="100%-402 0 100% 100%">', '<object size="100%-272 0 100% 100%">', "map preview"),
         ('name="centerPanel" size="0 0 100% 100%-64"', 'name="centerPanel" size="0 0 100% 100%-80"', "center panel"),
         ('name="centerLeftPanel" size="24 0 100% 100%"', 'name="centerLeftPanel" size="8 0 100% 100%"', "center left"),
         ('<object size="0 346 100%-795-24 100%">', '<object size="0 240 100%-795-24 100%">', "chat"),
@@ -354,6 +354,43 @@ for old, new, what in (
         ('<object size="150 0 290 100%">', '<object size="158 0 100% 100%">', "start")):
     gs = patch(gs, old, new, "gamesetup " + what)
 write("gui/gamesetup/Pages/GameSetupPage/GameSetupPage.xml", gs)
+# The map preview image has a fixed 400x293 size: fit it to its (smaller) box.
+mp = ZIP.read("gui/gamesetup/Pages/GameSetupPage/Panels/MapPreview.xml").decode("utf-8")
+mp = patch(mp, 'name="mapPreview" type="image" size="1 1 401 294"', 'name="mapPreview" type="image" size="1 1 100%-1 100%-1"', "map preview image")
+write("gui/gamesetup/Pages/GameSetupPage/Panels/MapPreview.xml", mp)
+# CI self-test (-conf=ios.menutest:true): log every visible object that sticks out of the screen.
+gsjs = ZIP.read("gui/gamesetup/gamesetup.js").decode("utf-8")
+gsjs = patch(gsjs, "\tg_SetupWindow = new SetupWindow(initData, hotloadData);\n", """\tg_SetupWindow = new SetupWindow(initData, hotloadData);
+	if (Engine.ConfigDB_GetValue("user", "ios.menutest") == "true")
+	{
+		const start = Date.now();
+		const root = Engine.GetGUIObjectByName("setupWindow");
+		const previous = root.onTick;
+		root.onTick = () => {
+			if (previous)
+				previous();
+			if (Date.now() - start < 12000)
+				return;
+			root.onTick = previous;
+			const screen = root.getComputedSize();
+			let count = 0;
+			const walk = (object, path) => {
+				if (object.hidden)
+					return;
+				const size = object.getComputedSize();
+				const name = path + "/" + (object.name || "?");
+				if (size.right > screen.right + 1 || size.left < screen.left - 1 || size.bottom > screen.bottom + 1 || size.top < screen.top - 1)
+					if (count++ < 40)
+						warn("iOS layoutcheck: " + name + " " + Math.round(size.left) + " " + Math.round(size.top) + " " + Math.round(size.right) + " " + Math.round(size.bottom) + " (screen " + Math.round(screen.left) + ".." + Math.round(screen.right) + ")");
+				for (const child of object.children)
+					walk(child, name);
+			};
+			walk(root, "");
+			log("iOS layoutcheck: " + count + " objects outside the screen");
+		};
+	}
+""", "gamesetup layout check")
+write("gui/gamesetup/gamesetup.js", gsjs)
 
 def current(name):
     path = os.path.join(out, name)
