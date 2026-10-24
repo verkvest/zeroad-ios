@@ -32,23 +32,36 @@ int main()
 		g.FingerUp(1, 100, 100, 2.0);
 		CHECK(g.Poll().empty());
 	}
-	{ // long press -> right click while held, nothing on release
+	{ // long press arms (no right click yet); release without moving -> right click
 		touch::Gestures g;
 		g.FingerDown(1, 100, 100, 0.0);
 		g.Update(0.3);
 		CHECK(g.Poll().empty());
-		g.Update(0.6);
+		g.Update(0.5);
 		auto a = g.Poll();
+		CHECK(a.size() == 1 && a[0].type == Action::LongPressArmed && a[0].x == 100);
+		g.FingerUp(1, 101, 100, 0.8);
+		a = g.Poll();
 		CHECK(a.size() == 1 && a[0].type == Action::RightClick && a[0].x == 100);
-		g.FingerMotion(1, 140, 100, 0.7);
-		g.FingerUp(1, 140, 100, 0.8);
-		CHECK(g.Poll().empty());
 	}
-	{ // slow tap (0.45 s) still a left click
+	{ // long press then drag -> box drag, no right click
 		touch::Gestures g;
 		g.FingerDown(1, 100, 100, 0.0);
-		g.Update(0.4);
-		g.FingerUp(1, 100, 100, 0.45);
+		g.Update(0.5);
+		g.Poll();
+		g.FingerMotion(1, 140, 100, 0.7);
+		g.FingerMotion(1, 180, 120, 0.8);
+		g.FingerUp(1, 180, 120, 0.9);
+		auto a = g.Poll();
+		CHECK(Count(a, Action::DragStart) == 1 && a.front().box && a.front().x == 100);
+		CHECK(Count(a, Action::DragEnd) == 1 && a.back().box);
+		CHECK(Count(a, Action::RightClick) == 0);
+	}
+	{ // slow tap (0.40 s) still a left click
+		touch::Gestures g;
+		g.FingerDown(1, 100, 100, 0.0);
+		g.Update(0.35);
+		g.FingerUp(1, 100, 100, 0.40);
 		auto a = g.Poll();
 		CHECK(a.size() == 1 && a[0].type == Action::LeftClick);
 	}
@@ -64,6 +77,7 @@ int main()
 		CHECK(Count(a, Action::DragEnd) == 1);
 		CHECK(Count(a, Action::LeftClick) == 0);
 		CHECK(a.front().x == 10 && a.back().x == 90);
+		CHECK(!a.front().box && !a.back().box); // plain drag = camera pan in the engine
 	}
 	{ // two-finger tap -> right click at centroid
 		touch::Gestures g;

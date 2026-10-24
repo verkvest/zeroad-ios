@@ -202,6 +202,7 @@ int main(int argc, char* argv[])
 			case touch::Action::DragStart: ++st.dragStart; dragging = true; dragX0 = dragX1 = a.x; dragY0 = dragY1 = a.y; break;
 			case touch::Action::DragMove: dragX1 = a.x; dragY1 = a.y; break;
 			case touch::Action::DragEnd: ++st.dragEnd; dragging = false; break;
+			case touch::Action::LongPressArmed: break;
 			}
 		}
 

@@ -64,12 +64,13 @@ float Gestures::Spread() const
 	return d < 1.f ? 1.f : d;
 }
 
-void Gestures::Emit(Action::Type type, float x, float y)
+void Gestures::Emit(Action::Type type, float x, float y, bool box)
 {
 	Action a;
 	a.type = type;
 	a.x = x;
 	a.y = y;
+	a.box = box;
 	m_Actions.push_back(a);
 }
 
@@ -90,6 +91,7 @@ void Gestures::FingerDown(int64_t id, float x, float y, double t)
 		m_StartTime = t;
 		break;
 	case ONE_PENDING:
+	case ONE_ARMED:
 	case ONE_DRAG:
 	{
 		if (m_State == ONE_DRAG)
@@ -97,7 +99,7 @@ void Gestures::FingerDown(int64_t id, float x, float y, double t)
 			// Turning a drag into a two-finger gesture: release the drag first.
 			for (const Finger& o : m_Fingers)
 				if (o.down && o.id != id)
-					Emit(Action::DragEnd, o.x, o.y);
+					Emit(Action::DragEnd, o.x, o.y, m_DragBox);
 		}
 		m_State = TWO;
 		m_StartTime = t;
@@ -125,15 +127,17 @@ void Gestures::FingerMotion(int64_t id, float x, float y, double /*t*/)
 	switch (m_State)
 	{
 	case ONE_PENDING:
+	case ONE_ARMED:
 		if (Dist(x, y, f->startX, f->startY) > m_Cfg.tapMaxMove)
 		{
+			m_DragBox = m_State == ONE_ARMED;
 			m_State = ONE_DRAG;
-			Emit(Action::DragStart, f->startX, f->startY);
-			Emit(Action::DragMove, x, y);
+			Emit(Action::DragStart, f->startX, f->startY, m_DragBox);
+			Emit(Action::DragMove, x, y, m_DragBox);
 		}
 		break;
 	case ONE_DRAG:
-		Emit(Action::DragMove, x, y);
+		Emit(Action::DragMove, x, y, m_DragBox);
 		break;
 	case TWO:
 	{
@@ -188,8 +192,11 @@ void Gestures::FingerUp(int64_t id, float x, float y, double t)
 		if (t - m_StartTime < m_Cfg.longPressTime && Dist(x, y, f->startX, f->startY) <= m_Cfg.tapMaxMove)
 			Emit(Action::LeftClick, f->startX, f->startY);
 		break;
+	case ONE_ARMED:
+		Emit(Action::RightClick, f->startX, f->startY);
+		break;
 	case ONE_DRAG:
-		Emit(Action::DragEnd, x, y);
+		Emit(Action::DragEnd, x, y, m_DragBox);
 		break;
 	case TWO:
 	{
@@ -218,10 +225,10 @@ void Gestures::Update(double t)
 	for (const Finger& f : m_Fingers)
 		if (f.down)
 		{
-			Emit(Action::RightClick, f.startX, f.startY);
+			Emit(Action::LongPressArmed, f.startX, f.startY);
 			break;
 		}
-	m_State = ENDING;
+	m_State = ONE_ARMED;
 }
 
 void Gestures::Cancel()
@@ -229,7 +236,7 @@ void Gestures::Cancel()
 	if (m_State == ONE_DRAG)
 		for (const Finger& f : m_Fingers)
 			if (f.down)
-				Emit(Action::DragEnd, f.x, f.y);
+				Emit(Action::DragEnd, f.x, f.y, m_DragBox);
 	for (Finger& f : m_Fingers)
 		f.down = false;
 	m_State = IDLE;

@@ -3,9 +3,11 @@
  * Engine-independent touch gesture recognizer for the 0 A.D. iOS port.
  *
  *  - one-finger tap          -> LeftClick
- *  - one-finger drag         -> DragStart / DragMove / DragEnd (left-button drag, e.g. selection box)
+ *  - one-finger drag         -> DragStart / DragMove / DragEnd with box = false (the engine pans the camera)
+ *  - long press, then drag   -> LongPressArmed when the press arms (needs Update()), then
+ *                               DragStart / DragMove / DragEnd with box = true (selection box)
+ *  - long press and release  -> RightClick (when the finger lifts without moving)
  *  - two-finger tap          -> RightClick (at the centroid)
- *  - one-finger long press   -> RightClick (fires while the finger is still down; needs Update())
  *  - two-finger pan          -> Pan (centroid delta, pixels)
  *  - pinch                   -> Zoom (scale factor relative to previous frame, > 1 = fingers spread)
  *
@@ -31,18 +33,20 @@ struct Action
 		DragMove,
 		DragEnd,
 		Pan,
-		Zoom
+		Zoom,
+		LongPressArmed
 	};
 	Type type;
 	float x = 0.f, y = 0.f;   // position (click / drag point / gesture centroid)
 	float dx = 0.f, dy = 0.f; // Pan delta
 	float scale = 1.f;        // Zoom factor (current distance / previous distance)
+	bool box = false;         // Drag*: started after a long press (selection box)
 };
 
 struct Config
 {
 	double tapMaxTime = 0.35;         // s, max duration of a 1-finger tap
-	double longPressTime = 0.55;      // s, holding still this long = right click
+	double longPressTime = 0.45;      // s, holding still this long arms box select / right click
 	float tapMaxMove = 12.f;          // px, max movement of a tap
 	double twoFingerTapMaxTime = 0.40; // s
 	float twoFingerTapMaxMove = 16.f;  // px (centroid movement and finger spread change)
@@ -73,6 +77,7 @@ private:
 	{
 		IDLE,
 		ONE_PENDING, // 1 finger down, could become tap or drag
+		ONE_ARMED,   // long press reached: release = right click, move = box drag
 		ONE_DRAG,
 		TWO,         // 2 fingers: tap, pan or pinch
 		ENDING       // gesture finished, wait until all fingers lifted
@@ -90,7 +95,7 @@ private:
 	Finger* Alloc(int64_t id);
 	void Centroid(float& cx, float& cy) const;
 	float Spread() const;
-	void Emit(Action::Type type, float x, float y);
+	void Emit(Action::Type type, float x, float y, bool box = false);
 
 	Config m_Cfg;
 	State m_State = IDLE;
@@ -101,6 +106,7 @@ private:
 	float m_StartCx = 0, m_StartCy = 0, m_LastCx = 0, m_LastCy = 0;
 	float m_StartSpread = 1, m_LastSpread = 1;
 	bool m_Panning = false, m_Pinching = false;
+	bool m_DragBox = false;
 	std::vector<Action> m_Actions;
 };
 
