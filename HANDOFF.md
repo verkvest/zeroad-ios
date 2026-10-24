@@ -39,3 +39,14 @@ Updated: 2026-10-24 11:22 (Europe/Madrid)
 - Fix (2280946): build-spidermonkey-ios.sh changes the size to 2 MiB - 2*16 KiB with sed and checks the result. This changes the cache key, so mozjs is rebuilt. ios-build run 40085967752.
 - /workspace/asc/pipeline.sh 40085967752 testflight-engine-7 (log pipeline12.log) tags the commit, uploads build 12, and adds it to the external group with a review submission.
 - To symbolicate the next crash: download the engine-iphoneos-log artifact, unzip Pyrogenesis.app/pyrogenesis, and run llvm-symbolizer --obj=pyrogenesis on 0x100000000+offset.
+
+## Update 2026-10-24 (Europe/Madrid): iPhone adaptation (target build 13, tag testflight-engine-8)
+- Engine patch 0010: GUI laid out inside the UIKit safe area (left/right insets; bottom via ios.safearea.bottom=true; off via ios.safearea=false),
+  canvas translate + scissor offset + mouse offset in CGUI; auto GUI scale = min(safeH/600, safeW/1100) (ios.gui.minwidth/minheight); home indicator auto-hidden.
+  Exposes ios.gui.scale / ios.gui.insetleft / ios.gui.insettop to JS (input.js band box uses them).
+- ios mod: main menu "Quick Play vs AI" (page_ios_quickplay.xml: ios.quickplay.map default acropolis_bay_2p, 1 Petra easy/balanced);
+  ios.autoquickplay=true presses it automatically (CI). Session right-edge toolbar (gui/session/ios_toolbar.js + session_objects/ios_toolbar.xml):
+  Pause, Speed, Idle worker, Idle army, Army on screen, Home (CC), Stop, Back to work, Unload, Delete. Self-test presses them when ios.touchtest=true.
+- Defaults: particles off, AI difficulty 1 (easy), tips off.
+- CI: sim-launch.py prefers "iPhone N Pro" (SIM_DEVICE regex overrides); skirmish step is now main menu -> Quick Play + touch self-test.
+- Not done yet: zoom-reset button, bigger minimap, simplified top bar.
