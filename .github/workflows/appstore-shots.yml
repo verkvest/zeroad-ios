@@ -25,7 +25,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: engine-iphonesimulator-log
-          run-id: ${{ inputs.build_run || '40110433854' }}
+          run-id: ${{ inputs.build_run || '40120025647' }}
           github-token: ${{ github.token }}
           path: art
       - name: Xcode 26
@@ -51,8 +51,9 @@ jobs:
         continue-on-error: true
         timeout-minutes: 32
         env:
-          SHOT_EVERY: "6"
+          SHOT_EVERY: "10"
           SHOT_MASK: ignored
+          SIM_VIDEO: "1"
           SIM_DEVICE: ${{ matrix.device }}
           # iPadOS 26 letterboxes a landscape-only app in the portrait simulator; iPadOS 18 rotates it.
           SIM_RUNTIME: ${{ matrix.runtime }}

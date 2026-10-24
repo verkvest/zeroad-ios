@@ -35,6 +35,12 @@ def launch():
     return subprocess.Popen(["xcrun", "simctl", "launch", "--console-pty", "--terminate-running-process", udid, bundle] + args,
                             stdout=logf, stderr=subprocess.STDOUT)
 p = launch()
+# SIM_VIDEO=1: record the whole run (simctl io recordVideo, H.264) to <out>/run.mp4 for App Store previews.
+rec = None
+if os.environ.get("SIM_VIDEO"):
+    rec = subprocess.Popen(["xcrun", "simctl", "io", udid, "recordVideo", "--codec=h264", "--force",
+                            *(["--mask=" + os.environ["SHOT_MASK"]] if os.environ.get("SHOT_MASK") else []),
+                            os.path.join(out, "run.mp4")])
 relaunched = False
 for i in range(secs):
     time.sleep(1)
@@ -51,6 +57,13 @@ for i in range(secs):
         break
     if i in (15, 45, 90) or (i % every == every - 1) or i == secs - 2:
         run("xcrun", "simctl", "io", udid, "screenshot", *(["--mask=" + os.environ["SHOT_MASK"]] if os.environ.get("SHOT_MASK") else []), os.path.join(out, f"engine-{i+1:03d}s.png"))
+if rec:
+    import signal
+    rec.send_signal(signal.SIGINT)
+    try:
+        rec.wait(timeout=60)
+    except subprocess.TimeoutExpired:
+        rec.kill()
 run("xcrun", "simctl", "terminate", udid, bundle)
 time.sleep(1)
 if p.poll() is None:

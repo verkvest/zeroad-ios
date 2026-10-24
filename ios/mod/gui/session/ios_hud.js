@@ -170,7 +170,7 @@ function iosHudLayout()
 		"100%-" + commandsWidth + " 100%-" + commandsHeight + " 100% 100%";
 
 	const page = Engine.GetGUIObjectByName("iosPageButton");
-	page.hidden = g_IOSHud.pages < 2;
+	page.hidden = g_IOSHud.pages < 2 || !g_Selection.size();
 	page.size = "100%-" + (commandsWidth + 76) + " 100%-" + (commandsHeight) + " 100%-" + (commandsWidth + 4) + " 100%-" + (commandsHeight - 72);
 	Engine.GetGUIObjectByName("iosPageLabel").caption = (g_IOSHud.page + 1) + "/" + g_IOSHud.pages + " >";
 }
