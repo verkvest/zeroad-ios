@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- iOS port: "Quick Play vs AI" from the main menu. -->
+<page>
+	<include>ios_quickplay/quickplay.xml</include>
+</page>

@@ -1,0 +1,26 @@
+diff --git a/source/renderer/backend/gl/DeviceCommandContext.cpp b/source/renderer/backend/gl/DeviceCommandContext.cpp
+index 9246030..70d74c3 100644
+--- a/source/renderer/backend/gl/DeviceCommandContext.cpp
++++ b/source/renderer/backend/gl/DeviceCommandContext.cpp
+@@ -117,7 +117,9 @@ GLenum BufferTypeToGLTarget(const CBuffer::Type type)
+ #if !CONFIG2_GLES
+ 		target = GL_UNIFORM_BUFFER;
+ #else
+-		debug_warn("Unsupported buffer type.");
++		// GLES 2 has no uniform buffers; the constructor still walks every buffer
++		// type to reset the binding cache, so don't assert here (iOS port).
++		target = GL_ARRAY_BUFFER;
+ #endif
+ 		break;
+ 	case CBuffer::Type::UPLOAD:
+@@ -259,6 +261,10 @@ CDeviceCommandContext::CDeviceCommandContext(CDevice* device)
+ 		// Currently we don't support upload buffers for GL.
+ 		if (type == CBuffer::Type::UPLOAD)
+ 			continue;
++#if CONFIG2_GLES
++		if (type == CBuffer::Type::UNIFORM)
++			continue;
++#endif
+ 		const GLenum target = BufferTypeToGLTarget(type);
+ 		const GLuint handle = 0;
+ 		m_BoundBuffers[index].first = target;

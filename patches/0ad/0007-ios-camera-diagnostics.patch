@@ -1,0 +1,42 @@
+diff --git a/source/graphics/GameView.cpp b/source/graphics/GameView.cpp
+index 2239a22..4dc7b29 100644
+--- a/source/graphics/GameView.cpp
++++ b/source/graphics/GameView.cpp
+@@ -17,6 +17,10 @@
+ 
+ #include "precompiled.h"
+ 
++#include "lib/sysdep/os.h"
++#include "lib/timer.h"
++#include "ps/CLogger.h"
++
+ #include "GameView.h"
+ 
+ #include "graphics/Camera.h"
+@@ -295,6 +299,26 @@ void CGameView::Update(const float deltaRealTime)
+ {
+ 	m->MiniMapTexture.Update(deltaRealTime);
+ 
++#if OS_IOS
++	{
++		// Diagnostics for the iOS port (CI screenshots): where is the camera looking?
++		static double lastLog = -100.0;
++		const double now = timer_Time();
++		if (now - lastLog > 10.0)
++		{
++			lastLog = now;
++			const CVector3D pivot = m->CameraController->GetCameraPivot();
++			const CVector3D pos = m->CameraController->GetCameraPosition();
++			const CVector3D rot = m->CameraController->GetCameraRotation();
++			const CVector3D camPos = m->ViewCamera.GetOrientation().GetTranslation();
++			LOGMESSAGE("iOS: camera pivot (%.1f %.1f %.1f) pos (%.1f %.1f %.1f) rot (%.2f %.2f %.2f) zoom %.1f view (%.1f %.1f %.1f) vp %dx%d focus %d",
++				pivot.X, pivot.Y, pivot.Z, pos.X, pos.Y, pos.Z, rot.X, rot.Y, rot.Z,
++				m->CameraController->GetCameraZoom(), camPos.X, camPos.Y, camPos.Z,
++				m->ViewCamera.GetViewPort().m_Width, m->ViewCamera.GetViewPort().m_Height, (int)g_app_has_focus);
++		}
++	}
++#endif
++
+ 	// The touch-input system drives the camera through the camera controller
+ 	// (MoveCameraTarget + synthesized wheel events), so the controller keeps running.
+ 

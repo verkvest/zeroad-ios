@@ -1,0 +1,251 @@
+diff --git a/source/graphics/Canvas2D.cpp b/source/graphics/Canvas2D.cpp
+index 954176e..82cb49a 100644
+--- a/source/graphics/Canvas2D.cpp
++++ b/source/graphics/Canvas2D.cpp
+@@ -32,6 +32,7 @@
+ #include "maths/Rect.h"
+ #include "maths/Vector2D.h"
+ #include "ps/ConfigDB.h"
++#include "ps/VideoMode.h"
+ #include "ps/CStrIntern.h"
+ #include "ps/CStrInternStatic.h"
+ #include "ps/containers/StaticVector.h"
+@@ -166,10 +167,13 @@ public:
+ 		const float width = static_cast<float>(WidthInPixels) / Scale;
+ 		const float height = static_cast<float>(HeightInPixels) / Scale;
+ 
++		float insetLeft, insetTop, insetRight, insetBottom;
++		g_VideoMode.GetGUIInsets(insetLeft, insetTop, insetRight, insetBottom);
++
+ 		CMatrix3D transform;
+ 		transform.SetIdentity();
+ 		transform.Scale(1.0f, -1.f, 1.0f);
+-		transform.Translate(0.0f, height, -1000.0f);
++		transform.Translate(insetLeft, height - insetTop, -1000.0f);
+ 
+ 		CMatrix3D projection;
+ 		projection.SetOrtho(0.f, width, 0.f, height, -1.f, 1000.f);
+@@ -183,6 +187,12 @@ public:
+ 		if (!Scissors.empty())
+ 		{
+ 			CRect rect = Scissors.back();
++			float insetLeft, insetTop, insetRight, insetBottom;
++			g_VideoMode.GetGUIInsets(insetLeft, insetTop, insetRight, insetBottom);
++			rect.left += insetLeft;
++			rect.right += insetLeft;
++			rect.top += insetTop;
++			rect.bottom += insetTop;
+ 			Renderer::Backend::IDeviceCommandContext::Rect scissorRect;
+ 			scissorRect.x = std::ceil(rect.left * Scale);
+ 			scissorRect.y = std::ceil(static_cast<float>(HeightInPixels) - rect.bottom * Scale);
+diff --git a/source/gui/CGUI.cpp b/source/gui/CGUI.cpp
+index b76d874..9989e31 100644
+--- a/source/gui/CGUI.cpp
++++ b/source/gui/CGUI.cpp
+@@ -70,6 +70,18 @@
+ #include <unordered_set>
+ #include <utility>
+ 
++
++namespace
++{
++// Screen pixels -> GUI units, relative to the top-left of the safe area (see CVideoMode::GetGUIInsets).
++CVector2D ScreenToGUI(int x, int y)
++{
++	float left, top, right, bottom;
++	g_VideoMode.GetGUIInsets(left, top, right, bottom);
++	return CVector2D(static_cast<float>(x) / g_VideoMode.GetScale() - left, static_cast<float>(y) / g_VideoMode.GetScale() - top);
++}
++} // anonymous namespace
++
+ const double SELECT_DBLCLICK_RATE = 0.5;
+ const u32 MAX_OBJECT_DEPTH = 100; // Max number of nesting for GUI includes. Used to detect recursive inclusion
+ 
+@@ -148,7 +160,7 @@ InReaction CGUI::HandleEvent(const SDL_Event_* ev)
+ 		// Yes the mouse position is stored as float to avoid
+ 		//  constant conversions when operating in a
+ 		//  float-based environment.
+-		m_MousePos = CVector2D((float)ev->ev.motion.x / g_VideoMode.GetScale(), (float)ev->ev.motion.y / g_VideoMode.GetScale());
++		m_MousePos = ScreenToGUI(ev->ev.motion.x, ev->ev.motion.y);
+ 
+ 		SGUIMessage msg(GUIM_MOUSE_MOTION);
+ 		m_BaseObject->RecurseObject(&IGUIObject::IsHiddenOrGhostOrOutOfBoundaries, &IGUIObject::HandleMessage, msg);
+@@ -173,7 +185,7 @@ InReaction CGUI::HandleEvent(const SDL_Event_* ev)
+ 	CVector2D oldMousePos = m_MousePos;
+ 	if (ev->ev.type == SDL_MOUSEBUTTONDOWN || ev->ev.type == SDL_MOUSEBUTTONUP)
+ 	{
+-		m_MousePos = CVector2D((float)ev->ev.button.x / g_VideoMode.GetScale(), (float)ev->ev.button.y / g_VideoMode.GetScale());
++		m_MousePos = ScreenToGUI(ev->ev.button.x, ev->ev.button.y);
+ 	}
+ 
+ 	// Allow the focused object to pre-empt regular GUI events.
+@@ -462,7 +474,10 @@ IGUIObject* CGUI::FindObjectUnderMouse()
+ 
+ CSize2D CGUI::GetWindowSize() const
+ {
+-	return CSize2D{static_cast<float>(g_xres) / g_VideoMode.GetScale(), static_cast<float>(g_yres) / g_VideoMode.GetScale() };
++	float left, top, right, bottom;
++	g_VideoMode.GetGUIInsets(left, top, right, bottom);
++	return CSize2D{static_cast<float>(g_xres) / g_VideoMode.GetScale() - left - right,
++		static_cast<float>(g_yres) / g_VideoMode.GetScale() - top - bottom};
+ }
+ 
+ void CGUI::SendFocusMessage(EGUIMessageType msgType)
+diff --git a/source/ps/VideoMode.cpp b/source/ps/VideoMode.cpp
+index 530d17d..089b5c1 100644
+--- a/source/ps/VideoMode.cpp
++++ b/source/ps/VideoMode.cpp
+@@ -58,6 +58,12 @@
+ #include <SDL_surface.h>
+ #include <SDL_version.h>
+ #include <SDL_video.h>
++#if OS_IOS
++#include <SDL_hints.h>
++#include <SDL_syswm.h>
++#include <objc/message.h>
++#include <objc/runtime.h>
++#endif
+ #include <algorithm>
+ #include <cstdlib>
+ #include <sstream>
+@@ -325,6 +331,10 @@ void CVideoMode::ReadConfig()
+ 
+ bool CVideoMode::SetVideoMode(int w, int h, int bpp, bool fullscreen)
+ {
++#if OS_IOS
++	// Hide the home indicator and make the first swipe at the screen edges go to the game.
++	SDL_SetHint(SDL_HINT_IOS_HIDE_HOME_INDICATOR, "2");
++#endif
+ 	Uint32 flags = 0;
+ 	if (fullscreen)
+ 	{
+@@ -522,13 +532,23 @@ bool CVideoMode::SetVideoMode(int w, int h, int bpp, bool fullscreen)
+ #if OS_IOS
+ 	// iOS: render and lay out the GUI in drawable pixels (Retina), touches are converted to pixels too.
+ 	SDL_GL_GetDrawableSize(m_Window, &m_CurrentW, &m_CurrentH);
++	UpdateSafeArea();
+ 	if (g_ConfigDB.Get("ios.autoguiscale", true))
+ 	{
+-		// Keep a logical GUI of at least ~1280x720, the smallest size 0 A.D.'s GUI is laid out for.
+-		m_Scale = std::max(1.0f, std::min(m_CurrentH / 720.0f, m_CurrentW / 1280.0f));
++		// Phones: make the GUI as large as possible while the safe area still holds a logical
++		// GUI of ios.gui.minwidth x ios.gui.minheight (the session HUD needs ~1024 wide).
++		const float safeW = m_CurrentW - m_InsetPx[0] - m_InsetPx[2];
++		const float safeH = m_CurrentH - m_InsetPx[1] - m_InsetPx[3];
++		const float minW = std::max(800.0f, g_ConfigDB.Get("ios.gui.minwidth", 1100.0f));
++		const float minH = std::max(480.0f, g_ConfigDB.Get("ios.gui.minheight", 600.0f));
++		m_Scale = std::max(1.0f, std::min(safeH / minH, safeW / minW));
+ 		m_Scale = std::floor(m_Scale * 20.0f) / 20.0f;
+ 	}
+-	LOGMESSAGE("iOS: drawable %dx%d, GUI scale %.2f", m_CurrentW, m_CurrentH, m_Scale);
++	LOGMESSAGE("iOS: drawable %dx%d, GUI scale %.2f, logical GUI %.0fx%.0f", m_CurrentW, m_CurrentH, m_Scale,
++		(m_CurrentW - m_InsetPx[0] - m_InsetPx[2]) / m_Scale, (m_CurrentH - m_InsetPx[1] - m_InsetPx[3]) / m_Scale);
++	g_ConfigDB.SetValueString(CFG_SYSTEM, "ios.gui.scale", CStr::FromDouble(m_Scale));
++	g_ConfigDB.SetValueString(CFG_SYSTEM, "ios.gui.insetleft", CStr::FromDouble(m_InsetPx[0] / m_Scale));
++	g_ConfigDB.SetValueString(CFG_SYSTEM, "ios.gui.insettop", CStr::FromDouble(m_InsetPx[1] / m_Scale));
+ #endif
+ 	m_CurrentBPP = bpp;
+ 
+@@ -745,6 +765,62 @@ float CVideoMode::GetScale() const
+ 	return m_Scale;
+ }
+ 
++void CVideoMode::GetGUIInsets(float& left, float& top, float& right, float& bottom) const
++{
++	left = m_InsetPx[0] / m_Scale;
++	top = m_InsetPx[1] / m_Scale;
++	right = m_InsetPx[2] / m_Scale;
++	bottom = m_InsetPx[3] / m_Scale;
++}
++
++#if OS_IOS
++namespace
++{
++struct IOSEdgeInsets { double top, left, bottom, right; };
++}
++#endif
++
++void CVideoMode::UpdateSafeArea()
++{
++	for (float& v : m_InsetPx)
++		v = 0.f;
++#if OS_IOS
++	if (!m_Window || !g_ConfigDB.Get("ios.safearea", true))
++		return;
++	SDL_SysWMinfo info;
++	SDL_VERSION(&info.version);
++	if (!SDL_GetWindowWMInfo(m_Window, &info) || info.subsystem != SDL_SYSWM_UIKIT || !info.info.uikit.window)
++		return;
++	id window = reinterpret_cast<id>(info.info.uikit.window);
++	SEL sel = sel_registerName("safeAreaInsets");
++	if (!class_respondsToSelector(object_getClass(window), sel))
++		return;
++#if defined(__x86_64__)
++	IOSEdgeInsets in;
++	reinterpret_cast<void (*)(IOSEdgeInsets*, id, SEL)>(objc_msgSend_stret)(&in, window, sel);
++#else
++	const IOSEdgeInsets in = reinterpret_cast<IOSEdgeInsets (*)(id, SEL)>(objc_msgSend)(window, sel);
++#endif
++	int ww = 0, wh = 0, dw = 0, dh = 0;
++	SDL_GetWindowSize(m_Window, &ww, &wh);
++	SDL_GL_GetDrawableSize(m_Window, &dw, &dh);
++	const float px = ww > 0 ? static_cast<float>(dw) / ww : 1.f;
++	// Left/right: the notch or Dynamic Island in landscape. Top is the status bar (hidden).
++	// The home indicator is hidden/deferred, so the bottom inset is opt-in.
++	m_InsetPx[0] = in.left * px;
++	m_InsetPx[1] = 0.f;
++	m_InsetPx[2] = in.right * px;
++	m_InsetPx[3] = g_ConfigDB.Get("ios.safearea.bottom", false) ? in.bottom * px : 0.f;
++	LOGMESSAGE("iOS: safe area insets (pt) left %.0f top %.0f right %.0f bottom %.0f, applied (px) %.0f %.0f %.0f %.0f",
++		in.left, in.top, in.right, in.bottom, m_InsetPx[0], m_InsetPx[1], m_InsetPx[2], m_InsetPx[3]);
++#endif
++	if (m_Scale > 0.f)
++	{
++		g_ConfigDB.SetValueString(CFG_SYSTEM, "ios.gui.insetleft", CStr::FromDouble(m_InsetPx[0] / m_Scale));
++		g_ConfigDB.SetValueString(CFG_SYSTEM, "ios.gui.insettop", CStr::FromDouble(m_InsetPx[1] / m_Scale));
++	}
++}
++
+ bool CVideoMode::SetFullscreen(bool fullscreen)
+ {
+ 	// This might get called before initialisation by psDisplayError;
+@@ -829,7 +905,10 @@ void CVideoMode::UpdateRenderer(int w, int h)
+ {
+ #if OS_IOS
+ 	if (g_VideoMode.GetWindow())
++	{
+ 		SDL_GL_GetDrawableSize(g_VideoMode.GetWindow(), &w, &h);
++		g_VideoMode.UpdateSafeArea();
++	}
+ #endif
+ 	if (w < 2) w = 2; // avoid GL errors caused by invalid sizes
+ 	if (h < 2) h = 2;
+diff --git a/source/ps/VideoMode.h b/source/ps/VideoMode.h
+index d33407a..781794f 100644
+--- a/source/ps/VideoMode.h
++++ b/source/ps/VideoMode.h
+@@ -105,6 +105,14 @@ public:
+ 
+ 	float GetScale() const;
+ 
++	/**
++	 * Safe-area insets (notch / Dynamic Island / home indicator) in GUI units.
++	 * The GUI is laid out inside the safe rectangle; always zero outside iOS.
++	 */
++	void GetGUIInsets(float& left, float& top, float& right, float& bottom) const;
++
++	void UpdateSafeArea();
++
+ 	SDL_Window* GetWindow();
+ 
+ 	void SetWindowIcon();
+@@ -140,6 +148,9 @@ private:
+ 
+ 	float m_Scale = 1.0f;
+ 
++	// Safe-area insets in drawable pixels: left, top, right, bottom.
++	float m_InsetPx[4] = {0.f, 0.f, 0.f, 0.f};
++
+ 	// Config file settings (0 if unspecified)
+ 	int m_ConfigW = 0;
+ 	int m_ConfigH = 0;

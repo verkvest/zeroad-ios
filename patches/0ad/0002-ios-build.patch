@@ -1,0 +1,182 @@
+diff --git a/build/premake/premake5.lua b/build/premake/premake5.lua
+index 357b08f..75716cf 100644
+--- a/build/premake/premake5.lua
++++ b/build/premake/premake5.lua
+@@ -41,6 +41,7 @@ print("")
+ 
+ newoption { category = "Pyrogenesis", trigger = "android", description = "Use non-working Android cross-compiling mode" }
+ newoption { category = "Pyrogenesis", trigger = "coverage", description = "Enable code coverage data collection (GCC only)" }
++newoption { category = "Pyrogenesis", trigger = "ios", description = "Cross-compile for iOS (experimental, use with --gles)" }
+ newoption { category = "Pyrogenesis", trigger = "gles", description = "Use non-working OpenGL ES 2.0 mode" }
+ newoption { category = "Pyrogenesis", trigger = "minimal-flags", description = "Only set compiler/linker flags that are really needed. Has no effect on Windows builds" }
+ newoption { category = "Pyrogenesis", trigger = "outpath", description = "Location for generated project files", default="../workspaces/default" }
+@@ -1040,6 +1041,12 @@ function setup_all_libs ()
+ 	end
+ 
+ 	setup_static_lib_project("lowlevel", source_dirs, extern_libs, extra_params)
++	if _OPTIONS["ios"] then
++		-- no FSEvents / AppKit on iOS
++		removefiles { source_root.."lib/sysdep/os/osx/dir_watch.cpp", source_root.."lib/sysdep/os/osx/osx_atlas.mm" }
++		files { source_root.."lib/sysdep/os/bsd/dir_watch.cpp" }
++		files { source_root.."lib/sysdep/os/ios/*.cpp" }
++	end
+ 
+ 
+ 	extern_libs = { "glad" }
+@@ -1164,7 +1171,9 @@ function setup_main_exe ()
+ 	project_add_contents(source_root, {}, {}, extra_params)
+ 	project_add_extern_libs(used_extern_libs, target_type)
+ 
+-	dependson { "Collada" }
++	if not _OPTIONS["ios"] then
++		dependson { "Collada" }
++	end
+ 
+ 	rtti "off"
+ 
+@@ -1235,7 +1244,18 @@ function setup_main_exe ()
+ 	elseif os.istarget("macosx") then
+ 
+ 		links { "pthread" }
+-		links { "ApplicationServices.framework", "Cocoa.framework", "CoreFoundation.framework" }
++		if _OPTIONS["ios"] then
++			-- SDL provides main() (UIApplicationMain) on iOS; static SpiderMonkey needs mozglue
++			links { "SDL2main", "mozjs128-glue" }
++			-- BrowserEngineCore (iOS 17.4+) is referenced by mozglue's JIT-page helpers, unused without JIT
++			linkoptions { "-Wl,-weak_framework,BrowserEngineCore" }
++			links { "Foundation.framework", "UIKit.framework", "CoreFoundation.framework", "OpenGLES.framework",
++				"QuartzCore.framework", "CoreAudio.framework", "AudioToolbox.framework", "AVFoundation.framework",
++				"CoreGraphics.framework", "CoreVideo.framework", "Metal.framework", "GameController.framework",
++				"CoreMotion.framework", "CoreHaptics.framework", "Security.framework", "SystemConfiguration.framework" }
++		else
++			links { "ApplicationServices.framework", "Cocoa.framework", "CoreFoundation.framework" }
++		end
+ 
+ 		architecture(macos_arch)
+ 		buildoptions { "-arch " .. macos_arch }
+@@ -1670,7 +1690,9 @@ if not _OPTIONS["without-atlas"] then
+ 	setup_atlas_frontends()
+ end
+ 
+-setup_collada_projects()
++if not _OPTIONS["ios"] then
++	setup_collada_projects()
++end
+ 
+ if not _OPTIONS["without-tests"] then
+ 	setup_tests()
+diff --git a/source/lib/sysdep/os/ios/ios_stubs.cpp b/source/lib/sysdep/os/ios/ios_stubs.cpp
+new file mode 100644
+index 0000000..109bb42
+--- /dev/null
++++ b/source/lib/sysdep/os/ios/ios_stubs.cpp
+@@ -0,0 +1,19 @@
++/* Copyright (C) 2026 Wildfire Games / zeroad-ios contributors.
++ * Licensed under the same terms as the surrounding 0 A.D. lowlevel code (MIT).
++ */
++
++#include "precompiled.h"
++
++#include "lib/sysdep/os/osx/osx_atlas.h"
++
++#include <fmt/format.h>
++#include <vector>
++
++// Atlas (the scenario editor) is a desktop-only wxWidgets tool.
++void startNewAtlasProcess(const std::vector<CStr8>&)
++{
++}
++
++// fmt 7 defines iterator_buffer::flush() in format.h only; some TUs include just core.h
++// and expect it from the library, which does not instantiate the char* variant.
++template class fmt::v7::detail::iterator_buffer<char*, char, fmt::v7::detail::fixed_buffer_traits>;
+diff --git a/source/lib/sysdep/os/osx/osx.cpp b/source/lib/sysdep/os/osx/osx.cpp
+index 97359dd..80d65c9 100644
+--- a/source/lib/sysdep/os/osx/osx.cpp
++++ b/source/lib/sysdep/os/osx/osx.cpp
+@@ -27,7 +27,10 @@
+ #include "lib/utf8.h"
+ #include "osx_bundle.h"
+ 
++#include <TargetConditionals.h>
++#if !TARGET_OS_IPHONE
+ #include <ApplicationServices/ApplicationServices.h>
++#endif
+ #include <AvailabilityMacros.h> // MAC_OS_X_VERSION_MIN_REQUIRED
+ #include <CoreFoundation/CoreFoundation.h>
+ #include <mach-o/dyld.h> // _NSGetExecutablePath
+diff --git a/source/ps/GameSetup/HWDetect.cpp b/source/ps/GameSetup/HWDetect.cpp
+index 45911a2..e382bc2 100644
+--- a/source/ps/GameSetup/HWDetect.cpp
++++ b/source/ps/GameSetup/HWDetect.cpp
+@@ -23,7 +23,9 @@
+ #include "lib/debug.h"
+ #include "lib/external_libraries/curl.h"
+ #include "lib/external_libraries/enet.h"
++#if CONFIG2_LOBBY
+ #include "lib/external_libraries/gloox.h"
++#endif
+ #include "lib/external_libraries/png.h"
+ #include "lib/external_libraries/libsdl.h"
+ #include "lib/path.h"
+@@ -209,7 +211,9 @@ void ReportLibraries(const ScriptRequest& rq, JS::HandleValue settings)
+ 	appendLibrary(LibraryReporter{rq, "boost"}.Add("version", BOOST_VERSION).MakeReport());
+ 	appendLibrary(LibraryReporter{rq, "enet"}.Add("version", std::to_string(ENET_VERSION)).MakeReport());
+ 	appendLibrary(LibraryReporter{rq, "fmt"}.Add("version", FMT_VERSION).MakeReport());
++#if CONFIG2_LOBBY
+ 	appendLibrary(LibraryReporter{rq, "gloox"}.Add("version", gloox_version()).MakeReport());
++#endif
+ 	appendLibrary(LibraryReporter{rq, "libicu"}.Add("version", U_ICU_VERSION).MakeReport());
+ 	appendLibrary(LibraryReporter{rq, "libcurl"}.Add("version", std::string(curl_version())).MakeReport());
+ #if CONFIG2_AUDIO
+diff --git a/source/renderer/backend/gl/Texture.cpp b/source/renderer/backend/gl/Texture.cpp
+index 19c9e59..7da5ea2 100644
+--- a/source/renderer/backend/gl/Texture.cpp
++++ b/source/renderer/backend/gl/Texture.cpp
+@@ -213,8 +213,8 @@ std::unique_ptr<CTexture> CTexture::Create(
+ 			break;
+ #if CONFIG2_GLES
+ 		// GLES requires pixel type == UNSIGNED_SHORT or UNSIGNED_INT for depth.
+-		case Format::D16_UNORM: FALLTHROUGH;
+-		case Format::D24_UNORM: FALLTHROUGH;
++		case Format::D16_UNORM: [[fallthrough]];
++		case Format::D24_UNORM: [[fallthrough]];
+ 		case Format::D32_SFLOAT:
+ 			internalFormat = GL_DEPTH_COMPONENT;
+ 			pixelFormat = GL_DEPTH_COMPONENT;
+diff --git a/source/third_party/tinygettext/src/iconv.cpp b/source/third_party/tinygettext/src/iconv.cpp
+index 09f52fd..335425f 100644
+--- a/source/third_party/tinygettext/src/iconv.cpp
++++ b/source/third_party/tinygettext/src/iconv.cpp
+@@ -49,14 +49,14 @@ IConv::IConv(const std::string& from_charset_, const std::string& to_charset_)
+ IConv::~IConv()
+ {
+   if (cd)
+-    iconv_close(cd);
++    tinygettext::iconv_close(cd);
+ }
+ 
+ void
+ IConv::set_charsets(const std::string& from_charset_, const std::string& to_charset_)
+ {
+   if (cd)
+-    iconv_close(cd);
++    tinygettext::iconv_close(cd);
+ 
+   from_charset = from_charset_;
+   to_charset   = to_charset_;
+@@ -113,12 +113,12 @@ IConv::convert(const std::string& text)
+     char* outbuf = &result[0];
+ 
+     // Try to convert the text.
+-    size_t ret = iconv(cd, &inbuf, &inbytesleft, &outbuf, &outbytesleft);
++    size_t ret = tinygettext::iconv(cd, &inbuf, &inbytesleft, &outbuf, &outbytesleft);
+     if (ret == static_cast<size_t>(-1))
+     {
+       if (errno == EILSEQ || errno == EINVAL)
+       { // invalid multibyte sequence
+-        iconv(cd, nullptr, nullptr, nullptr, nullptr); // reset state
++        tinygettext::iconv(cd, nullptr, nullptr, nullptr, nullptr); // reset state
+ 
+         // FIXME: Could try to skip the invalid byte and continue
+         log_error << "error: tinygettext:iconv: invalid multibyte sequence in:  \"" << text << "\"" << std::endl;

@@ -1,0 +1,13 @@
+diff --git a/build/premake/premake5.lua b/build/premake/premake5.lua
+index 75716cf..5ad6992 100644
+--- a/build/premake/premake5.lua
++++ b/build/premake/premake5.lua
+@@ -1247,8 +1247,6 @@ function setup_main_exe ()
+ 		if _OPTIONS["ios"] then
+ 			-- SDL provides main() (UIApplicationMain) on iOS; static SpiderMonkey needs mozglue
+ 			links { "SDL2main", "mozjs128-glue" }
+-			-- BrowserEngineCore (iOS 17.4+) is referenced by mozglue's JIT-page helpers, unused without JIT
+-			linkoptions { "-Wl,-weak_framework,BrowserEngineCore" }
+ 			links { "Foundation.framework", "UIKit.framework", "CoreFoundation.framework", "OpenGLES.framework",
+ 				"QuartzCore.framework", "CoreAudio.framework", "AudioToolbox.framework", "AVFoundation.framework",
+ 				"CoreGraphics.framework", "CoreVideo.framework", "Metal.framework", "GameController.framework",

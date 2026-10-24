@@ -1,0 +1,543 @@
+diff --git a/source/graphics/GameView.cpp b/source/graphics/GameView.cpp
+index ff485df..2239a22 100644
+--- a/source/graphics/GameView.cpp
++++ b/source/graphics/GameView.cpp
+@@ -295,10 +295,8 @@ void CGameView::Update(const float deltaRealTime)
+ {
+ 	m->MiniMapTexture.Update(deltaRealTime);
+ 
+-	// If camera movement is being handled by the touch-input system,
+-	// then we should stop to avoid conflicting with it
+-	if (g_TouchInput.IsEnabled())
+-		return;
++	// The touch-input system drives the camera through the camera controller
++	// (MoveCameraTarget + synthesized wheel events), so the controller keeps running.
+ 
+ 	if (!g_app_has_focus)
+ 		return;
+diff --git a/source/lib/sysdep/os.h b/source/lib/sysdep/os.h
+index 9a3ae14..2a086de 100644
+--- a/source/lib/sysdep/os.h
++++ b/source/lib/sysdep/os.h
+@@ -66,6 +66,15 @@
+ #else
+ # define OS_MACOSX 0
+ #endif
++// iOS / iPadOS (subset of OS_MACOSX: Darwin kernel, UIKit instead of AppKit)
++#if defined(__APPLE__)
++# include <TargetConditionals.h>
++#endif
++#if defined(__APPLE__) && TARGET_OS_IPHONE
++# define OS_IOS 1
++#else
++# define OS_IOS 0
++#endif
+ // BSD
+ #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__FreeBSD_kernel__)
+ # define OS_BSD 1
+diff --git a/source/ps/GameSetup/GameSetup.cpp b/source/ps/GameSetup/GameSetup.cpp
+index e547c47..75f9888 100644
+--- a/source/ps/GameSetup/GameSetup.cpp
++++ b/source/ps/GameSetup/GameSetup.cpp
+@@ -326,6 +326,10 @@ static void InitSDL()
+ #if SDL_VERSION_ATLEAST(2, 0, 9)
+ 	// SDL2 >= 2.0.9 defaults to 32 pixels (to support touch screens) but that can break our double-clicking.
+ 	SDL_SetHint(SDL_HINT_MOUSE_DOUBLE_CLICK_RADIUS, "1");
++#if OS_IOS || OS_ANDROID
++	// Touches are translated by CTouchInput; SDL must not synthesize mouse events from them.
++	SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
++#endif
+ #endif
+ 
+ #if SDL_VERSION_ATLEAST(2, 0, 14) && OS_WIN
+diff --git a/source/ps/TouchInput.cpp b/source/ps/TouchInput.cpp
+index 42bcc2f..c5f66e8 100644
+--- a/source/ps/TouchInput.cpp
++++ b/source/ps/TouchInput.cpp
+@@ -1,4 +1,4 @@
+-/* Copyright (C) 2025 Wildfire Games.
++/* Copyright (C) 2026 Wildfire Games.
+  * This file is part of 0 A.D.
+  *
+  * 0 A.D. is free software: you can redistribute it and/or modify
+@@ -21,269 +21,184 @@
+ 
+ #include "graphics/Camera.h"
+ #include "graphics/GameView.h"
+-#include "lib/debug.h"
+ #include "lib/external_libraries/libsdl.h"
+ #include "lib/sysdep/os.h"
+ #include "lib/timer.h"
+-#include "maths/Matrix3D.h"
+ #include "ps/Game.h"
++#include "ps/VideoMode.h"
+ 
+ #include <SDL_events.h>
+ #include <SDL_mouse.h>
+-#include <cinttypes>
++#include <cmath>
+ 
+-// When emulation is enabled:
+-// Left-click to put finger 0 down.
+-// Then left-click-and-drag to move finger 0.
+-// Then left-click to put finger 0 up.
+-// Same with right-click for finger 1.
+-#define EMULATE_FINGERS_WITH_MOUSE 0
+-
+-extern int g_xres, g_yres;
+-
+-// NOTE: All this code is currently just a basic prototype for testing;
+-// it might need significant redesigning for proper usage.
+-
+-CTouchInput::CTouchInput() :
+-	m_State(STATE_INACTIVE)
++namespace
+ {
+-	for (size_t i = 0; i < MAX_FINGERS; ++i)
+-		m_Down[i] = false;
++// Wheel ticks per doubling of the finger spread.
++constexpr float WHEEL_TICKS_PER_ZOOM_DOUBLING = 6.f;
++// Pixels of two-finger movement per wheel tick in menus (list scrolling).
++constexpr float SCROLL_PIXELS_PER_TICK = 24.f;
+ 
+-	for (size_t i = 0; i < MAX_MOUSE; ++i)
+-		m_MouseEmulateState[i] = MOUSE_INACTIVE;
+-}
+-
+-CTouchInput::~CTouchInput()
++void WindowSize(int& w, int& h)
+ {
++	w = h = 0;
++	if (SDL_Window* window = g_VideoMode.GetWindow())
++		SDL_GetWindowSize(window, &w, &h);
++	if (w <= 0 || h <= 0)
++	{
++		w = g_VideoMode.GetXRes();
++		h = g_VideoMode.GetYRes();
++	}
+ }
++} // anonymous namespace
++
++CTouchInput::CTouchInput() = default;
++CTouchInput::~CTouchInput() = default;
+ 
+ bool CTouchInput::IsEnabled()
+ {
+-#if OS_ANDROID || EMULATE_FINGERS_WITH_MOUSE
++#if OS_ANDROID || OS_IOS
+ 	return true;
+ #else
+ 	return false;
+ #endif
+ }
+ 
+-void CTouchInput::OnFingerDown(int id, int x, int y)
++void CTouchInput::PushMouseMotion(float x, float y, bool leftDown)
+ {
+-	debug_printf("finger down %d %d %d; state %d\n", id, x, y, m_State);
+-	m_Down[id] = true;
+-	m_Prev[id] = m_Pos[id] = CVector2D(x, y);
+-
+-	if (m_State == STATE_INACTIVE && id == 0)
+-	{
+-		m_State = STATE_FIRST_TOUCH;
+-		m_FirstTouchTime = timer_Time();
+-		m_FirstTouchPos = CVector2D(x, y);
+-	}
+-	else if ((m_State == STATE_FIRST_TOUCH || m_State == STATE_PANNING) && id == 1)
+-	{
+-		m_State = STATE_ZOOMING;
+-	}
++	SDL_Event_ ev{};
++	ev.ev.type = SDL_MOUSEMOTION;
++	ev.ev.motion.x = static_cast<int>(x);
++	ev.ev.motion.y = static_cast<int>(y);
++	ev.ev.motion.state = leftDown ? SDL_BUTTON_LMASK : 0;
++	SDL_PushEvent(&ev.ev);
+ }
+ 
+-void CTouchInput::OnFingerUp(int id, int x, int y)
++void CTouchInput::PushMouseButton(int button, bool down, float x, float y)
+ {
+-	debug_printf("finger up %d %d %d; state %d\n", id, x, y, m_State);
+-	m_Down[id] = false;
+-	m_Pos[id] = CVector2D(x, y);
+-
+-	if (m_State == STATE_FIRST_TOUCH && id == 0 && timer_Time() < m_FirstTouchTime + 0.5)
+-	{
+-		m_State = STATE_INACTIVE;
+-
+-		SDL_Event_ ev;
+-		ev.ev.button.button = SDL_BUTTON_LEFT;
+-		ev.ev.button.x = m_Pos[0].X;
+-		ev.ev.button.y = m_Pos[0].Y;
+-
+-		ev.ev.type = SDL_MOUSEBUTTONDOWN;
+-		ev.ev.button.state = SDL_PRESSED;
+-		SDL_PushEvent(&ev.ev);
+-
+-		ev.ev.type = SDL_MOUSEBUTTONUP;
+-		ev.ev.button.state = SDL_RELEASED;
+-		SDL_PushEvent(&ev.ev);
+-	}
+-	else if (m_State == STATE_ZOOMING && id == 1)
+-	{
+- 		m_State = STATE_PANNING;
+-	}
+- 	else
+-	{
+-		m_State = STATE_INACTIVE;
+-	}
++	SDL_Event_ ev{};
++	ev.ev.type = down ? SDL_MOUSEBUTTONDOWN : SDL_MOUSEBUTTONUP;
++	ev.ev.button.button = static_cast<Uint8>(button);
++	ev.ev.button.state = down ? SDL_PRESSED : SDL_RELEASED;
++	ev.ev.button.clicks = 1;
++	ev.ev.button.x = static_cast<int>(x);
++	ev.ev.button.y = static_cast<int>(y);
++	SDL_PushEvent(&ev.ev);
+ }
+ 
+-void CTouchInput::OnFingerMotion(int id, int x, int y)
++void CTouchInput::PushWheel(int dy)
+ {
+-	debug_printf("finger motion %d %d %d; state %d\n", id, x, y, m_State);
+-
+-	CVector2D pos(x, y);
+-
+-	m_Prev[id] = m_Pos[id];
+-	m_Pos[id] = pos;
+-
+-	if (m_State == STATE_FIRST_TOUCH && id == 0)
+-	{
+-		if ((pos - m_FirstTouchPos).Length() > 16)
+-		{
+-			m_State = STATE_PANNING;
+-
+-			const CCamera& camera = *(g_Game->GetView()->GetCamera());
+-			m_PanFocus = camera.GetWorldCoordinates(m_FirstTouchPos.X, m_FirstTouchPos.Y, true);
+-			m_PanDist = (m_PanFocus - camera.GetOrientation().GetTranslation()).Y;
+-		}
+-	}
+-
+-	if (m_State == STATE_PANNING && id == 0)
+-	{
+-		CCamera& camera = *(g_Game->GetView()->GetCamera());
+-		auto [origin, dir] = camera.BuildCameraRay(x, y);
+-		dir *= m_PanDist / dir.Y;
+-		camera.GetOrientation().Translate(m_PanFocus - dir - origin);
+-		camera.UpdateFrustum();
+-	}
+-
+-	if (m_State == STATE_ZOOMING && id == 1)
+-	{
+-		float oldDist = (m_Prev[id] - m_Pos[1 - id]).Length();
+-		float newDist = (m_Pos[id] - m_Pos[1 - id]).Length();
+-		float zoomDist = (newDist - oldDist) * -0.005f * m_PanDist;
+-
+-		CCamera& camera = *(g_Game->GetView()->GetCamera());
+-		CVector3D dir{camera.BuildCameraRay(m_Pos[0].X, m_Pos[0].Y).direction};
+-		dir *= zoomDist;
+-		camera.GetOrientation().Translate(dir);
+-		camera.UpdateFrustum();
+-
+-		m_PanFocus = camera.GetWorldCoordinates(m_Pos[0].X, m_Pos[0].Y, true);
+-		m_PanDist = (m_PanFocus - camera.GetOrientation().GetTranslation()).Y;
+-	}
++	if (!dy)
++		return;
++	SDL_Event_ ev{};
++	ev.ev.type = SDL_MOUSEWHEEL;
++	ev.ev.wheel.y = dy;
++	ev.ev.wheel.direction = SDL_MOUSEWHEEL_NORMAL;
++	SDL_PushEvent(&ev.ev);
+ }
+ 
+-void CTouchInput::Frame()
++void CTouchInput::Pan(float x, float y, float dx, float dy)
+ {
+-	double t = timer_Time();
+-	if (m_State == STATE_FIRST_TOUCH && t > m_FirstTouchTime + 1.0)
++	if (g_Game && g_Game->IsGameStarted() && g_Game->GetView())
+ 	{
+-		m_State = STATE_INACTIVE;
+-
+-		SDL_Event_ ev;
+-		ev.ev.button.button = SDL_BUTTON_RIGHT;
+-		ev.ev.button.x = m_Pos[0].X;
+-		ev.ev.button.y = m_Pos[0].Y;
+-
+-		ev.ev.type = SDL_MOUSEBUTTONDOWN;
+-		ev.ev.button.state = SDL_PRESSED;
+-		SDL_PushEvent(&ev.ev);
+-
+-		ev.ev.type = SDL_MOUSEBUTTONUP;
+-		ev.ev.button.state = SDL_RELEASED;
+-		SDL_PushEvent(&ev.ev);
++		// "Grab the ground": the terrain point under the fingers follows them.
++		CGameView* view = g_Game->GetView();
++		const CCamera& camera = *view->GetCamera();
++		const CVector3D from = camera.GetWorldCoordinates(static_cast<int>(x - dx), static_cast<int>(y - dy), true);
++		const CVector3D to = camera.GetWorldCoordinates(static_cast<int>(x), static_cast<int>(y), true);
++		view->MoveCameraTarget(view->GetCameraPivot() + (from - to));
++		return;
+ 	}
++	// Menus: vertical two-finger movement scrolls lists like a mouse wheel.
++	m_ScrollAccum += dy / SCROLL_PIXELS_PER_TICK;
++	const int ticks = static_cast<int>(m_ScrollAccum);
++	m_ScrollAccum -= ticks;
++	PushMouseMotion(x, y, false);
++	PushWheel(ticks);
+ }
+ 
+-InReaction CTouchInput::HandleEvent([[maybe_unused]] const SDL_Event_* ev)
++void CTouchInput::Frame()
+ {
+-	if (!IsEnabled())
+-		return IN_PASS;
+-
+-#if EMULATE_FINGERS_WITH_MOUSE
+-	switch(ev->ev.type)
++	for (const touch::Action& a : m_Gestures.Poll())
+ 	{
+-	case SDL_MOUSEBUTTONDOWN:
+-	{
+-		int button;
+-		if (ev->ev.button.button == SDL_BUTTON_LEFT)
+-			button = 0;
+-		else if (ev->ev.button.button == SDL_BUTTON_RIGHT)
+-			button = 1;
+-		else
+-			return IN_PASS;
+-
+-		m_MouseEmulateDownPos[button] = CVector2D(ev->ev.button.x, ev->ev.button.y);
+-		if (m_MouseEmulateState[button] == MOUSE_INACTIVE)
++		switch (a.type)
+ 		{
+-			m_MouseEmulateState[button] = MOUSE_ACTIVATING;
+-			OnFingerDown(button, ev->ev.button.x, ev->ev.button.y);
+-		}
+-		else if (m_MouseEmulateState[button] == MOUSE_ACTIVE_UP)
++		case touch::Action::LeftClick:
++			PushMouseMotion(a.x, a.y, false);
++			PushMouseButton(SDL_BUTTON_LEFT, true, a.x, a.y);
++			PushMouseButton(SDL_BUTTON_LEFT, false, a.x, a.y);
++			break;
++		case touch::Action::RightClick:
++			PushMouseMotion(a.x, a.y, false);
++			PushMouseButton(SDL_BUTTON_RIGHT, true, a.x, a.y);
++			PushMouseButton(SDL_BUTTON_RIGHT, false, a.x, a.y);
++			break;
++		case touch::Action::DragStart:
++			PushMouseMotion(a.x, a.y, false);
++			PushMouseButton(SDL_BUTTON_LEFT, true, a.x, a.y);
++			break;
++		case touch::Action::DragMove:
++			PushMouseMotion(a.x, a.y, true);
++			break;
++		case touch::Action::DragEnd:
++			PushMouseMotion(a.x, a.y, true);
++			PushMouseButton(SDL_BUTTON_LEFT, false, a.x, a.y);
++			break;
++		case touch::Action::Pan:
++			Pan(a.x, a.y, a.dx, a.dy);
++			break;
++		case touch::Action::Zoom:
+ 		{
+-			m_MouseEmulateState[button] = MOUSE_ACTIVE_DOWN;
++			// Mouse wheel up = zoom in (default hotkeys camera.zoom.wheel.in/out).
++			m_WheelAccum += std::log2(a.scale) * WHEEL_TICKS_PER_ZOOM_DOUBLING;
++			const int ticks = static_cast<int>(m_WheelAccum);
++			m_WheelAccum -= ticks;
++			PushMouseMotion(a.x, a.y, false);
++			PushWheel(ticks);
++			break;
+ 		}
+-		return IN_HANDLED;
+-	}
+-
+-	case SDL_MOUSEBUTTONUP:
+-	{
+-		int button;
+-		if (ev->ev.button.button == SDL_BUTTON_LEFT)
+-			button = 0;
+-		else if (ev->ev.button.button == SDL_BUTTON_RIGHT)
+-			button = 1;
+-		else
+-			return IN_PASS;
+-
+-		if (m_MouseEmulateState[button] == MOUSE_ACTIVATING)
+-		{
+-			m_MouseEmulateState[button] = MOUSE_ACTIVE_UP;
+-		}
+-		else if (m_MouseEmulateState[button] == MOUSE_ACTIVE_DOWN)
+-		{
+-			float dist = (m_MouseEmulateDownPos[button] - CVector2D(ev->ev.button.x, ev->ev.button.y)).Length();
+-			if (dist <= 2)
+-			{
+-				m_MouseEmulateState[button] = MOUSE_INACTIVE;
+-				OnFingerUp(button, ev->ev.button.x, ev->ev.button.y);
+-			}
+-			else
+-			{
+-				m_MouseEmulateState[button] = MOUSE_ACTIVE_UP;
+-			}
+ 		}
+-		return IN_HANDLED;
+ 	}
++}
+ 
+-	case SDL_MOUSEMOTION:
+-	{
+-		for (size_t i = 0; i < MAX_MOUSE; ++i)
+-		{
+-			if (m_MouseEmulateState[i] == MOUSE_ACTIVE_DOWN)
+-			{
+-				OnFingerMotion(i, ev->ev.motion.x, ev->ev.motion.y);
+-			}
+-		}
+-		return IN_HANDLED;
+-	}
+-	}
+-#endif
++InReaction CTouchInput::HandleEvent(const SDL_Event_* ev)
++{
++	if (!IsEnabled())
++		return IN_PASS;
+ 
+-	switch(ev->ev.type)
++	switch (ev->ev.type)
+ 	{
+ 	case SDL_FINGERDOWN:
+ 	case SDL_FINGERUP:
+ 	case SDL_FINGERMOTION:
+ 	{
+-		// Map finger events onto the mouse, for basic testing
+-		debug_printf("finger %s tid=%" PRId64 " fid=%" PRId64 " x=%f y=%f dx=%f dy=%f p=%f\n",
+-			ev->ev.type == SDL_FINGERDOWN ? "down" :
+-			ev->ev.type == SDL_FINGERUP ? "up" :
+-			ev->ev.type == SDL_FINGERMOTION ? "motion" : "?",
+-			ev->ev.tfinger.touchId, ev->ev.tfinger.fingerId,
+-			ev->ev.tfinger.x, ev->ev.tfinger.y, ev->ev.tfinger.dx, ev->ev.tfinger.dy, ev->ev.tfinger.pressure);
+-
++		int w, h;
++		WindowSize(w, h);
++		const float x = ev->ev.tfinger.x * w;
++		const float y = ev->ev.tfinger.y * h;
++		const double t = timer_Time();
++		const int64_t id = static_cast<int64_t>(ev->ev.tfinger.fingerId);
+ 		if (ev->ev.type == SDL_FINGERDOWN)
+-			OnFingerDown(ev->ev.tfinger.fingerId, g_xres * ev->ev.tfinger.x, g_yres * ev->ev.tfinger.y);
++			m_Gestures.FingerDown(id, x, y, t);
+ 		else if (ev->ev.type == SDL_FINGERUP)
+-			OnFingerUp(ev->ev.tfinger.fingerId, g_xres * ev->ev.tfinger.x, g_yres * ev->ev.tfinger.y);
+-		else if (ev->ev.type == SDL_FINGERMOTION)
+-			OnFingerMotion(ev->ev.tfinger.fingerId, g_xres * ev->ev.tfinger.x, g_yres * ev->ev.tfinger.y);
++			m_Gestures.FingerUp(id, x, y, t);
++		else
++			m_Gestures.FingerMotion(id, x, y, t);
++		// Emit synthesized mouse events right away so taps feel immediate.
++		Frame();
+ 		return IN_HANDLED;
+ 	}
++	case SDL_MOUSEMOTION:
++	case SDL_MOUSEBUTTONDOWN:
++	case SDL_MOUSEBUTTONUP:
++		// SDL's own touch->mouse emulation is disabled (SDL_HINT_TOUCH_MOUSE_EVENTS=0),
++		// but drop any that still arrive to avoid double clicks.
++		if ((ev->ev.type == SDL_MOUSEMOTION ? ev->ev.motion.which : ev->ev.button.which) == SDL_TOUCH_MOUSEID)
++			return IN_HANDLED;
++		return IN_PASS;
++	case SDL_APP_WILLENTERBACKGROUND:
++		m_Gestures.Cancel();
++		Frame();
++		return IN_PASS;
+ 	}
+ 
+ 	return IN_PASS;
+diff --git a/source/ps/TouchInput.h b/source/ps/TouchInput.h
+index d0475bd..f625b78 100644
+--- a/source/ps/TouchInput.h
++++ b/source/ps/TouchInput.h
+@@ -1,4 +1,4 @@
+-/* Copyright (C) 2025 Wildfire Games.
++/* Copyright (C) 2026 Wildfire Games.
+  * This file is part of 0 A.D.
+  *
+  * 0 A.D. is free software: you can redistribute it and/or modify
+@@ -19,16 +19,17 @@
+ #define INCLUDED_TOUCHINPUT
+ 
+ #include "lib/input.h"
+-#include "maths/Vector2D.h"
+-#include "maths/Vector3D.h"
+-
+-#include <cstddef>
++#include "ps/TouchGestures.h"
+ 
+ struct SDL_Event_;
+ 
+ /**
+- * Maps touch events (e.g. on Android touchscreen devices) onto mouse events
+- * and camera movement.
++ * Maps touch events (iOS / Android touchscreens) onto mouse events and camera movement:
++ *  - tap               -> left click
++ *  - one-finger drag   -> left-button drag (selection box)
++ *  - two-finger tap    -> right click (order)
++ *  - two-finger pan    -> camera pan (in game) / mouse wheel scroll (menus)
++ *  - pinch             -> camera zoom (synthesized mouse wheel)
+  */
+ class CTouchInput
+ {
+@@ -49,43 +50,14 @@ public:
+ 	void Frame();
+ 
+ private:
+-	void OnFingerDown(int id, int x, int y);
+-	void OnFingerUp(int id, int x, int y);
+-	void OnFingerMotion(int id, int x, int y);
+-
+-	// Mouse emulation state:
+-	enum
+-	{
+-		MOUSE_INACTIVE,
+-		MOUSE_ACTIVATING,
+-		MOUSE_ACTIVE_UP,
+-		MOUSE_ACTIVE_DOWN
+-	};
+-	static const size_t MAX_MOUSE = 2;
+-	int m_MouseEmulateState[MAX_MOUSE];
+-	CVector2D m_MouseEmulateDownPos[MAX_MOUSE];
+-
+-	// Current finger state:
+-	static const size_t MAX_FINGERS = 2;
+-	bool m_Down[MAX_FINGERS];
+-	CVector2D m_Pos[MAX_FINGERS];
+-	CVector2D m_Prev[MAX_FINGERS];
+-
+-
+-	enum
+-	{
+-		STATE_INACTIVE,
+-		STATE_FIRST_TOUCH,
+-		STATE_PANNING,
+-		STATE_ZOOMING
+-	};
+-	int m_State;
+-
+-	double m_FirstTouchTime;
+-	CVector2D m_FirstTouchPos;
+-
+-	CVector3D m_PanFocus;
+-	float m_PanDist;
++	void PushMouseMotion(float x, float y, bool leftDown);
++	void PushMouseButton(int button, bool down, float x, float y);
++	void PushWheel(int dy);
++	void Pan(float x, float y, float dx, float dy);
++
++	touch::Gestures m_Gestures;
++	float m_WheelAccum = 0.f;
++	float m_ScrollAccum = 0.f;
+ };
+ 
+ extern CTouchInput g_TouchInput;
