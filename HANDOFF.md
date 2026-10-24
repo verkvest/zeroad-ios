@@ -22,3 +22,11 @@ Updated: 2026-10-24 11:22 (Europe/Madrid)
 - Pushing to feature/ios-prototype cancels the running ios-build (concurrency); use "[skip ci]" for doc commits.
 - PR-triggered duplicate runs are cancelled manually to save macOS runners.
 - Patches 0001..0008 in patches/0ad; regenerate a patch by committing tmp in build/0ad, editing, `git diff HEAD -- source`, then `git reset --mixed a2cae4d`.
+
+## Update 2026-10-24 12:10 (Europe/Madrid)
+- Builds 8, 9, 10 were all REJECTED in ASC processing: ITMS-91017 (BrowserEngineCore framework not allowed) + ITMS-90683 warning (NSBluetoothAlwaysUsageDescription). They never showed up in TestFlight.
+- Fix: ios/src/BrowserEngineStubs.cpp (no-op be_memory_inline_jit_* stubs, JIT is off anyway), patch 0009 drops the weak BrowserEngineCore link, plist gets the Bluetooth string, and make-engine-xcarchive.sh fails if BrowserEngine is still linked. ios-build run 40084376304.
+- Touch self-test run 40080912107 OK: box select picked 9 units, tap gave a 'move' command, two-finger pan and pinch (zoom 120->50) worked. Shots are in shots/m2-touchtest/.
+- ASC (app 6826514754): user 90528@list.ru can now see the app. Internal group "0 A.D. interno" 86f5a074-bd0e-435d-819a-e76751598387 (all builds) and external group "0 A.D. testers" 5768bd13-a0ef-492c-9b81-3a66a3231711 both have tester 90528@list.ru. Beta review details and the en-US beta localization are filled in.
+- Automation: /workspace/asc/pipeline.sh (log /workspace/asc/pipeline.log) waits for the device job, tags testflight-engine-6, waits for the upload and for VALID, adds the build to both groups and submits for Beta App Review.
+- Next: check pipeline.log. After beta approval, enable publicLinkEnabled on the external group to get a public link.
