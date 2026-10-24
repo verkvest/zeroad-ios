@@ -116,8 +116,10 @@ void Gestures::FingerDown(int64_t id, float x, float y, double t)
 	}
 }
 
-void Gestures::FingerMotion(int64_t id, float x, float y, double /*t*/)
+void Gestures::FingerMotion(int64_t id, float x, float y, double t)
 {
+	// A long press may have elapsed without an Update() call in between (slow frame).
+	Update(t);
 	Finger* f = Find(id);
 	if (!f)
 		return;
@@ -180,6 +182,7 @@ void Gestures::FingerMotion(int64_t id, float x, float y, double /*t*/)
 
 void Gestures::FingerUp(int64_t id, float x, float y, double t)
 {
+	Update(t);
 	Finger* f = Find(id);
 	if (!f)
 		return;

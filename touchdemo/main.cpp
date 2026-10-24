@@ -142,7 +142,11 @@ int main(int argc, char* argv[])
 		SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL);
 	std::fflush(stdout);
 
-	touch::Gestures gestures;
+	// Simulator frames can be slow: no long press during the scripted self-test.
+	touch::Config gestureConfig;
+	if (selftest)
+		gestureConfig.longPressTime = 1e9;
+	touch::Gestures gestures(gestureConfig);
 	Camera cam;
 	Stats st;
 	std::vector<Marker> markers;

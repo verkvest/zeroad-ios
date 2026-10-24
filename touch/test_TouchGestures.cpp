@@ -26,11 +26,19 @@ int main()
 		auto a = g.Poll();
 		CHECK(a.size() == 1 && a[0].type == Action::LeftClick && a[0].x == 100);
 	}
-	{ // long press without Update(): nothing (no tap)
+	{ // long press without Update() (slow frame): the release still arms first -> right click
 		touch::Gestures g;
 		g.FingerDown(1, 100, 100, 0.0);
 		g.FingerUp(1, 100, 100, 2.0);
-		CHECK(g.Poll().empty());
+		auto a = g.Poll();
+		CHECK(a.size() == 2 && a[0].type == Action::LongPressArmed && a[1].type == Action::RightClick);
+	}
+	{ // long press then move without Update() in between -> box drag
+		touch::Gestures g;
+		g.FingerDown(1, 100, 100, 0.0);
+		g.FingerMotion(1, 160, 140, 1.0);
+		auto a = g.Poll();
+		CHECK(a.size() == 3 && a[0].type == Action::LongPressArmed && a[1].type == Action::DragStart && a[1].box);
 	}
 	{ // long press arms (no right click yet); release without moving -> right click
 		touch::Gestures g;
