@@ -6,6 +6,7 @@ import json, os, subprocess, sys, time
 app, bundle, out = sys.argv[1:4]
 secs = int(sys.argv[4]) if len(sys.argv) > 4 else 60
 args = sys.argv[5:]
+every = int(os.environ.get("SHOT_EVERY", "60"))
 os.makedirs(out, exist_ok=True)
 
 def run(*a, check=False, **kw):
@@ -27,7 +28,7 @@ for i in range(secs):
     if p.poll() is not None:
         print(f"app exited after ~{i+1}s with {p.returncode}", flush=True)
         break
-    if i in (15, 45, 90) or (i % 60 == 59) or i == secs - 2:
+    if i in (15, 45, 90) or (i % every == every - 1) or i == secs - 2:
         run("xcrun", "simctl", "io", udid, "screenshot", os.path.join(out, f"engine-{i+1:03d}s.png"))
 run("xcrun", "simctl", "terminate", udid, bundle)
 time.sleep(1)

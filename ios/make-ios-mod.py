@@ -41,6 +41,7 @@ function touchTapToCommand(ev)
 		return;
 	ev.button = SDL_BUTTON_RIGHT;
 	g_TouchTapAsCommand = true;
+	log("iOS touch: tap -> command '" + action.type + "' for " + g_Selection.size() + " selected");
 }
 // --------------------------------------------------------------------------------------
 
