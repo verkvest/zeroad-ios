@@ -7,7 +7,7 @@ var g_IOSToolbarTicks = 0;
 
 // CI self-test (-conf=ios.touchtest:true): press the toolbar buttons from script.
 var g_IOSToolbarSelfTest = Engine.ConfigDB_GetValue("user", "ios.touchtest") == "true" ?
-	[[115, "army"], [120, "stop"], [125, "home"], [130, "speed"], [135, "speed"], [140, "pause"], [146, "pause"]] : [];
+	[[115, "army"], [120, "stop"], [125, "home"], [130, "speed"], [135, "speed"], [140, "pause"], [146, "pause"], [150, "home"], [155, "camera"]] : [];
 var g_IOSToolbarStart = 0;
 
 function iosToolbarPress(action)
@@ -38,6 +38,9 @@ function iosToolbarPress(action)
 	case "home":
 		iosSelectCivicCentre();
 		break;
+	case "camera":
+		iosResetCamera();
+		break;
 	case "stop":
 		stopUnits(g_Selection.toList());
 		break;
@@ -65,6 +68,38 @@ function iosSelectArmyOnScreen()
 		return;
 	g_Selection.reset();
 	g_Selection.addList(ents);
+}
+
+// Default angle and zoom (view.* config), centred on the selection, else the current view.
+function iosResetCamera()
+{
+	let pivot = Engine.GetCameraPivot();
+	if (!pivot)
+		return;
+	let y = 0;
+	const ent = g_Selection.getFirstSelected();
+	const state = ent && GetEntityState(ent);
+	if (state && state.position)
+	{
+		pivot = state.position;
+		y = state.position.y;
+	}
+	const deg = Math.PI / 180;
+	const rotX = (+Engine.ConfigDB_GetValue("user", "view.rotate.x.default") || 35) * deg;
+	const rotY = (+Engine.ConfigDB_GetValue("user", "view.rotate.y.default") || 0) * deg;
+	const zoom = +Engine.ConfigDB_GetValue("user", "view.zoom.default") || 120;
+	log("iOS toolbar: camera reset at " + Math.round(pivot.x) + "," + Math.round(pivot.z));
+	Engine.SetCameraData(pivot.x, y, pivot.z, rotX, rotY, zoom);
+}
+
+// Phones: a bigger minimap. The 1024px bottom panel is centred and the iOS GUI is always
+// at least 1100 logical px wide, so the minimap can grow into the left margin and upwards.
+function iosEnlargeMinimap()
+{
+	const panel = Engine.GetGUIObjectByName("minimapPanel");
+	if (!panel || !panel.parent || Engine.ConfigDB_GetValue("user", "ios.minimap.large") == "false")
+		return;
+	panel.parent.size = "50%-550 100%-238 50%-312 100%";
 }
 
 var g_IOSHomeIndex = 0;
@@ -102,6 +137,7 @@ function iosToolbarTick()
 {
 	if (g_IOSToolbarTicks == 0)
 	{
+		iosEnlargeMinimap();
 		const size = Engine.GetGUIObjectByName("iosToolbar").getComputedSize();
 		log("iOS toolbar: ready at " + Math.round(size.left) + "," + Math.round(size.top) + " - " + Math.round(size.right) + "," + Math.round(size.bottom));
 	}
