@@ -120,11 +120,40 @@ items = patch(items, "export const mainMenuItems = [\n", """export const mainMen
 		}
 	},
 """, "mainMenuItems")
+items = patch(items, '\t{\n\t\t"caption": translate("Scenario Editor"),', '\t{\n\t\t"iosHidden": true,\n\t\t"caption": translate("Scenario Editor"),', "hide editor")
+items = patch(items, '\t\t\t\t"caption": translate("Welcome Screen"),', '\t\t\t\t"iosHidden": true,\n\t\t\t\t"caption": translate("Welcome Screen"),', "hide welcome")
 write("gui/pregame/MainMenuItems.js", items)
 
 mainmenu = ZIP.read("gui/pregame/mainmenu.js").decode("utf-8")
 mainmenu = patch(mainmenu, """	Engine.GetGUIObjectByName("userReport").onTick = updateUserReportStatus;
 """, """	Engine.GetGUIObjectByName("userReport").onTick = updateUserReportStatus;
+
+	// iOS port: no user-report panel on phones.
+	Engine.GetGUIObjectByName("userReport").size = "-2000 -2000 -1700 -1850";
+
+	// iOS port CI self-test: open the Single-player submenu, then the game setup page.
+	if (Engine.ConfigDB_GetValue("user", "ios.menutest") == "true")
+	{
+		const start = Date.now();
+		let step = 0;
+		Engine.GetGUIObjectByName("userReport").onTick = () => {
+			const t = (Date.now() - start) / 1000;
+			if (step == 0 && t > 15)
+			{
+				++step;
+				const button = Engine.GetGUIObjectByName("mainMenuButtons").children.find(b => !b.hidden && b.caption == translate("Single-player"));
+				log("iOS menutest: open Single-player submenu");
+				if (button)
+					button.onPress();
+			}
+			else if (step == 1 && t > 40)
+			{
+				++step;
+				log("iOS menutest: open game setup");
+				Engine.SwitchGuiPage("page_gamesetup.xml");
+			}
+		};
+	}
 
 	// iOS port CI self-test: press "Quick Play vs AI" automatically.
 	if (Engine.ConfigDB_GetValue("user", "ios.autoquickplay") == "true")
@@ -197,28 +226,72 @@ styles = patch(styles, '<style name="gathererCounts"\n\t\ttextcolor="200 200 200
                '<style name="gathererCounts"\n\t\ttextcolor="200 200 200"\n\t\tfont="sans-bold-stroke-16"', "gathererCounts")
 write("gui/session/styles.xml", styles)
 
-# Main menu: taller buttons with a bigger font, wider panel.
-handler = ZIP.read("gui/pregame/MainMenuItemHandler.js").decode("utf-8")
-handler = patch(handler, "MainMenuItemHandler.prototype.ButtonHeight = 28;", "MainMenuItemHandler.prototype.ButtonHeight = 44;", "ButtonHeight")
-handler = patch(handler, "MainMenuItemHandler.prototype.Margin = 4;", "MainMenuItemHandler.prototype.Margin = 5;", "Margin")
-write("gui/pregame/MainMenuItemHandler.js", handler)
+BG_OLD = '\t\t\tconst right = backgroundsSize.right / 2 + offset;\n\t\t\tthis.background.size = {\n\t\t\t\t"left": right - height,\n\t\t\t\t"top": backgroundsSize.top,\n\t\t\t\t"right": right + height,\n\t\t\t\t"bottom": backgroundsSize.bottom\n\t\t\t};\n'
+BG_NEW = '\t\t\t// iOS port: scale up so a 19.5:9 screen is always covered.\n\t\t\tconst k = Math.max(1, 0.75 * (backgroundsSize.right - backgroundsSize.left) / height);\n\t\t\tconst right = backgroundsSize.right / 2 + offset;\n\t\t\tthis.background.size = {\n\t\t\t\t"left": right - height * k,\n\t\t\t\t"top": backgroundsSize.top - height * (k - 1) / 2,\n\t\t\t\t"right": right + height * k,\n\t\t\t\t"bottom": backgroundsSize.bottom + height * (k - 1) / 2\n\t\t\t};\n'
+# Main menu (phone landscape): left panel with the logo and two columns of 72-unit (48pt)
+# buttons, submenu to its right (ios/mod/gui/pregame/MainMenuItemHandler.js), no clutter.
 panel = ZIP.read("gui/pregame/menupanel.xml").decode("utf-8")
-panel = patch(panel, 'size="60 -2 300 100%+2" z="50"', 'size="40 -2 380 100%+2" z="50"', "mainMenu size")
-panel = patch(panel, '<object name="mainMenuButtons" size="8 146 100%-8 346" z="60">', '<object name="mainMenuButtons" size="10 146 100%-10 100%-4" z="60">', "buttons size")
+panel = patch(panel, 'size="100%-313 25 100% 200"', 'size="100%-440 8 100%-8 220"', "tooltip size")
+panel = patch(panel, 'size="60 -2 300 100%+2" z="50"', 'size="8 -2 508 100%+2" z="50"', "mainMenu size")
+panel = patch(panel, '<object name="mainMenuButtons" size="8 146 100%-8 346" z="60">', '<object name="mainMenuButtons" size="12 84 100%-12 100%-30" z="60">', "buttons size")
 panel = patch(panel, '<object name="mainMenuButton[n]" type="button" style="StoneButtonFancy" tooltip_style="pgToolTip"/>',
               '<object name="mainMenuButton[n]" type="button" style="StoneButtonFancy" font="sans-bold-20" tooltip_style="pgToolTip"/>', "button font")
 panel = patch(panel, '<object type="button" style="StoneButtonFancy" tooltip_style="pgToolTip"/>',
               '<object type="button" style="StoneButtonFancy" font="sans-bold-20" tooltip_style="pgToolTip"/>', "submenu font")
-panel = patch(panel, 'style="SubmenuPanel" size="60 0 300 0%"', 'style="SubmenuPanel" size="40 0 380 0%"', "submenu size")
+panel = patch(panel, 'style="SubmenuPanel" size="60 0 300 0%"', 'style="SubmenuPanel" size="520 0 900 0%" z="60"', "submenu size")
+panel = patch(panel, '<object name="submenuButtons" type="image" size="0 4 100%-4 100%-4"', '<object name="submenuButtons" type="image" size="6 6 100%-6 100%-6"', "submenu buttons")
 write("gui/pregame/menupanel.xml", panel)
+info = ZIP.read("gui/pregame/ProjectInformation.xml").decode("utf-8")
+info = patch(info, 'size="50%-110 10 50%+110 110"', 'size="50%-150 4 50%+150 80"', "logo")
+info = patch(info, '<object type="image" style="TranslucentPanelThinBorder" size="8 100%-368 100%-8 100%-94">',
+             '<object type="image" style="TranslucentPanelThinBorder" size="8 100%-368 100%-8 100%-94" hidden="true">', "description")
+info = patch(info, '<object size="4 100%-84 100%-4 100%-56" ghost="true">', '<object size="4 100%-84 100%-4 100%-56" ghost="true" hidden="true">', "organization")
+info = patch(info, 'name="productBuild" style="MediumTitleText" ghost="true" size="50%-128 100%-36 50%+128 100%"',
+             'name="productBuild" style="MediumTitleText" ghost="true" size="8 100%-28 100%-8 100%-2"', "build")
+write("gui/pregame/ProjectInformation.xml", info)
+# No welcome splash screen on phones (its desktop layout does not fit).
+splash = ZIP.read("gui/pregame/SplashscreenHandler.js").decode("utf-8")
+splash = patch(splash, "\t\tif (this.showSplashScreen)\n\t\t\tthis.openPage();", "\t\t// iOS port: no welcome screen.", "splash")
+write("gui/pregame/SplashscreenHandler.js", splash)
+# Background layers: 2 x height wide on desktop leaves the edges visible on a 19.5:9 phone.
+bg = ZIP.read("gui/pregame/BackgroundHandler.js").decode("utf-8")
+bg = patch(bg, BG_OLD, BG_NEW, "background")
+write("gui/pregame/BackgroundHandler.js", bg)
+
 
 for name in ("page_ios_quickplay.xml", "ios_quickplay/quickplay.xml", "ios_quickplay/quickplay.js",
-             "session/session_objects/ios_toolbar.xml", "session/ios_toolbar.js", "session/ios_hud.js"):
+             "session/session_objects/ios_toolbar.xml", "session/ios_toolbar.js", "session/ios_hud.js",
+             "pregame/MainMenuItemHandler.js"):
     write("gui/" + name, open(os.path.join(HERE, "mod", "gui", name), encoding="utf-8").read())
 # --- Dialogs: fit the phone screen (~1125 x 603 GUI units inside the safe area) and make the
 # close / back / cancel buttons at least 66 units (44pt) tall, growing upwards from their bottom edge.
 MAX_HALF_W, MAX_HALF_H, MIN_BUTTON_H = 545, 292, 66
 
+
+# Message boxes from the "mod" mod (mod.zip next to the public archive): fit the phone screen,
+# 44pt buttons, and a tap on the faded background presses the first ("cancel") button.
+MODZIP_PATH = os.path.join(os.path.dirname(os.path.abspath(src)), "mod.zip")
+if os.path.exists(MODZIP_PATH):
+    MODZIP = zipfile.ZipFile(MODZIP_PATH)
+    util = MODZIP.read("gui/common/utilities.js").decode("utf-8")
+    util = patch(util, '\tconst y1 = "100%-46";', '\tconst y1 = "100%-84"; // iOS port: 44pt buttons', "msgbox buttons")
+    write("gui/common/utilities.js", util)
+    mb = MODZIP.read("gui/msgbox/msgbox.xml").decode("utf-8")
+    mb = patch(mb, '<object sprite="ModernFade" type="image"/>',
+               '<object sprite="ModernFade" sprite_over="ModernFade" sprite_pressed="ModernFade" type="button">\n'
+               '\t\t<action on="Press">const cancel = Engine.GetGUIObjectByName("mbCancelHotkey"); if (cancel.onPress) cancel.onPress();</action>\n'
+               '\t</object>', "msgbox tap outside")
+    mb = patch(mb, 'size="18 18 100%-18 100%-64"', 'size="18 18 100%-18 100%-92"', "msgbox text")
+    write("gui/msgbox/msgbox.xml", mb)
+    mbjs = MODZIP.read("gui/msgbox/msgbox.js").decode("utf-8")
+    mbjs = patch(mbjs, "\tconst mbLRDiff = data.width / 2;\n\tconst mbUDDiff = data.height / 2;",
+                 "\t// iOS port: room for 44pt buttons, never larger than the phone screen.\n"
+                 "\tconst mbLRDiff = Math.min(data.width, 1090) / 2;\n"
+                 "\tconst mbUDDiff = Math.min(data.height + 38, 584) / 2;", "msgbox size")
+    write("gui/msgbox/msgbox.js", mbjs)
+    print("msgbox: patched from", MODZIP_PATH)
+else:
+    print("msgbox: no mod.zip next to", src)
 
 def current(name):
     path = os.path.join(out, name)

@@ -180,7 +180,9 @@ jobs:
       - name: Launch engine in iOS Simulator
         if: steps.pkg.outcome == 'success' && matrix.platform == 'iphonesimulator'
         timeout-minutes: 15
-        run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out 90
+        env:
+          SHOT_EVERY: "10"
+        run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out 100 -conf=ios.menutest:true
       - name: Main menu -> Quick Play vs AI (auto-pressed) + scripted touch self-test in iOS Simulator
         if: steps.pkg.outcome == 'success' && matrix.platform == 'iphonesimulator'
         continue-on-error: true
