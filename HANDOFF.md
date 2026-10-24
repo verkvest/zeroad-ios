@@ -59,9 +59,7 @@ Updated: 2026-10-24 11:22 (Europe/Madrid)
 
 ## Update 2026-10-24 ~14:40 (Europe/Madrid): phone HUD redesign + audio (target build 14, tag testflight-engine-9)
 - Owner on device: "всё мелко и неудобно", no music.
-- Audio: patch 0011 sets AVAudioSession category Playback + setActive before OpenAL opens the device
-  (OpenAL Soft never configures the session -> SoloAmbient -> muted by the silent switch). sound.ios.category=ambient / sound.ios.mixwithothers=true to tune.
-  Music pack itself is fine (Vorbis q0 via ffmpeg, OpenAL init OK in the simulator log). musicgain default 0.35.
+- Audio: works on device (phone was on silent). Audio session patch and musicgain change dropped on owner's request; no audio code changes.
 - HUD (ios mod, ios_hud.js + make-ios-mod.py):
   icon grids of all selection panels scaled 1.7x (38 -> 65 lu = ~43pt at GUI scale 2); right grid 8 columns, grows upwards;
   minimap 220 lu bottom-left (toolbar "Map" toggles), details card above it hidden by default (toolbar "Info"), only the command row stays;
