@@ -50,3 +50,9 @@ Updated: 2026-10-24 11:22 (Europe/Madrid)
 - Defaults: particles off, AI difficulty 1 (easy), tips off.
 - CI: sim-launch.py prefers "iPhone N Pro" (SIM_DEVICE regex overrides); skirmish step is now main menu -> Quick Play + touch self-test.
 - Not done yet: zoom-reset button, bigger minimap, simplified top bar.
+- Result (CI run 40089479508, iPhone 17 Pro sim 2622x1206): safe insets 62pt L/R -> GUI scale 2.00, logical 1125x603; quick play + touch self-test + toolbar self-test pass.
+  Screenshots (local box, shots/ is gitignored; also in CI artifact engine-iphonesimulator-log): shots/m3-iphone-mainmenu, shots/m3-iphone-quickplay, shots/m3-iphone-hud (rotated to landscape, JPEG).
+- Build 13 (tag testflight-engine-8 @ af5a47f): VALID, internal testing; external submit blocked (build 11 still in beta review).
+- Known: in build 13 the Home button finds no CC (skirmish CC template names differ) -> fixed in f0b7a23 (match CivCentre class); ship as testflight-engine-9 / build 14 after its CI.
+- Self-test camera ends off-map after the two-finger pan (finger-follow pan near the horizon) -> world black in later screenshots; not a render bug.
+- ASC crashes: only the build 11 one (2026-10-24 12:22 Madrid); none for builds 12/13 yet.
