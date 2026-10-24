@@ -2,7 +2,8 @@
 # rotates to landscape, hides the iPhone Dynamic Island strip, burns in captions, adds a silent AAC stereo track.
 # Usage (in the downloaded artifact dir): python3 make-preview-video.py iphone|ipad
 import subprocess, sys
-FONT='/tmp/as4/LinBiolinum_RBah.ttf'
+import os
+FONT=os.environ.get('PREVIEW_FONT', 'LinBiolinum_RBah.ttf')  # unzip -j mods/mod/mod.zip fonts/LinBiolinum_RBah.ttf
 def build(dev, src, segs, W, H, out):
     # segs: (start_s, end_s, out_dur, caption, kind)
     args=['ffmpeg','-v','error','-y']
