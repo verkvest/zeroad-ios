@@ -362,6 +362,53 @@ for old, new, what in (
         ('<object size="150 0 290 100%">', '<object size="158 0 100% 100%">', "start")):
     gs = patch(gs, old, new, "gamesetup " + what)
 write("gui/gamesetup/Pages/GameSetupPage/GameSetupPage.xml", gs)
+# The settings columns: the desktop panel slides out from under the tab column and its
+# columns can stick out past the right edge on a phone. Lay them out in the room left of
+# the tab column instead, every column inside the screen, and hide the panel with no tab.
+gsp = ZIP.read("gui/gamesetup/Pages/GameSetupPage/Panels/GameSettingsPanel.js").decode("utf-8")
+gsp += """
+// iOS port (GPL-2.0+): deterministic settings layout that always fits left of the tab column.
+GameSettingsPanel.prototype.positionSettings = function()
+{
+	const selectedTab = g_GameSettingsLayout[g_TabCategorySelected];
+	this.settingsPanelFrame.hidden = !selectedTab;
+	if (!selectedTab)
+		return;
+	const frames = [];
+	for (const name of selectedTab.settings)
+	{
+		const frame = this.gameSettingControlManager.gameSettingControls[name].frame;
+		if (!frame.hidden)
+			frames.push(frame);
+	}
+	const centre = Engine.GetGUIObjectByName("centerCenterPanel").getComputedSize();
+	const left = Engine.GetGUIObjectByName("centerLeftPanel").getComputedSize();
+	const panel = this.settingsPanel.getComputedSize();
+	const maxPerColumn = Math.max(1, Math.floor((panel.bottom - panel.top) / this.SettingHeight));
+	const columns = Math.max(1, Math.ceil(frames.length / maxPerColumn));
+	const perColumn = Math.max(1, Math.ceil(frames.length / columns));
+	const columnWidth = Math.floor(Math.min(this.MaxColumnWidth, Math.max(150, centre.left - left.left - 8) / columns));
+	frames.forEach((frame, i) => {
+		const column = Math.floor(i / perColumn);
+		const row = i % perColumn;
+		frame.size = {
+			"left": columnWidth * column,
+			"top": this.SettingMarginBottom + row * this.SettingHeight,
+			"right": columnWidth * (column + 1) - this.SettingMarginRight,
+			"bottom": (row + 1) * this.SettingHeight
+		};
+	});
+	this.settingsPanelFrame.size = (-columns * columnWidth) + " 0 0 100%";
+};
+
+GameSettingsPanel.prototype.onTick = function()
+{
+	delete this.settingsPanelFrame.onTick;
+	this.lastTickTime = undefined;
+	this.triggerResizeHandlers();
+};
+"""
+write("gui/gamesetup/Pages/GameSetupPage/Panels/GameSettingsPanel.js", gsp)
 # The map preview image has a fixed 400x293 size: fit it to its (smaller) box.
 mp = ZIP.read("gui/gamesetup/Pages/GameSetupPage/Panels/MapPreview.xml").decode("utf-8")
 mp = patch(mp, 'name="mapPreview" type="image" size="1 1 401 294"', 'name="mapPreview" type="image" size="1 1 100%-1 100%-1"', "map preview image")
