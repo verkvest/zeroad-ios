@@ -7,7 +7,7 @@ var g_IOSToolbarTicks = 0;
 
 // CI self-test (-conf=ios.touchtest:true): press the toolbar buttons from script.
 var g_IOSToolbarSelfTest = Engine.ConfigDB_GetValue("user", "ios.touchtest") == "true" ?
-	[[115, "army"], [120, "stop"], [125, "home"], [130, "speed"], [135, "speed"], [140, "pause"], [146, "pause"], [150, "home"], [155, "camera"]] : [];
+	[[112, "army"], [118, "stop"], [122, "idleworker"], [134, "info"], [146, "info"], [148, "home"], [158, "map"], [166, "map"], [170, "camera"], [176, "speed"], [182, "pause"], [188, "pause"], [190, "speed"]] : [];
 var g_IOSToolbarStart = 0;
 
 function iosToolbarPress(action)
@@ -31,6 +31,12 @@ function iosToolbarPress(action)
 		break;
 	case "idlearmy":
 		findIdleUnit(g_MilitaryTypes);
+		break;
+	case "info":
+		iosHudToggle("info");
+		break;
+	case "map":
+		iosHudToggle("map");
 		break;
 	case "army":
 		iosSelectArmyOnScreen();
@@ -92,16 +98,6 @@ function iosResetCamera()
 	Engine.SetCameraData(pivot.x, y, pivot.z, rotX, rotY, zoom);
 }
 
-// Phones: a bigger minimap. The 1024px bottom panel is centred and the iOS GUI is always
-// at least 1100 logical px wide, so the minimap can grow into the left margin and upwards.
-function iosEnlargeMinimap()
-{
-	const panel = Engine.GetGUIObjectByName("minimapPanel");
-	if (!panel || !panel.parent || Engine.ConfigDB_GetValue("user", "ios.minimap.large") == "false")
-		return;
-	panel.parent.size = "50%-550 100%-238 50%-312 100%";
-}
-
 var g_IOSHomeIndex = 0;
 
 // Select (and centre the camera on) the player's Civic Centre; repeated presses cycle through all of them.
@@ -125,19 +121,24 @@ function iosToolbarUpdate()
 	const hasSelection = g_Selection.size() > 0;
 	for (const action of ["stop", "work", "unload", "delete"])
 		Engine.GetGUIObjectByName("iosButton_" + action).enabled = hasSelection;
-	const pause = Engine.GetGUIObjectByName("iosButton_pause");
-	pause.enabled = g_PauseControl.canPause(true);
-	pause.caption = g_PauseControl.explicitPause ? translate("Resume") : translate("Pause");
-	const speed = Engine.GetGUIObjectByName("iosButton_speed");
-	speed.enabled = !g_IsNetworked;
-	speed.caption = sprintf(translate("Speed %(rate)s"), { "rate": "×" + (+Engine.GetSimRate().toFixed(2)) });
+	for (const action of ["stop", "work", "unload", "delete"])
+	{
+		const icon = Engine.TryGetGUIObjectByName("iosIcon_" + action);
+		if (icon)
+			icon.sprite = (hasSelection ? "" : "color:0 0 0 127:grayscale:") + icon.sprite.replace(/^color:0 0 0 127:grayscale:/, "");
+	}
+	Engine.GetGUIObjectByName("iosButton_pause").enabled = g_PauseControl.canPause(true);
+	Engine.GetGUIObjectByName("iosLabel_pause").caption = g_PauseControl.explicitPause ? translate("Resume") : translate("Pause");
+	Engine.GetGUIObjectByName("iosButton_speed").enabled = !g_IsNetworked;
+	Engine.GetGUIObjectByName("iosLabel_speed").caption = "×" + (+Engine.GetSimRate().toFixed(2));
+	Engine.GetGUIObjectByName("iosLabel_map").caption = g_IOSHud.map ? translate("Hide map") : translate("Map");
 }
 
 function iosToolbarTick()
 {
 	if (g_IOSToolbarTicks == 0)
 	{
-		iosEnlargeMinimap();
+		iosHudInit();
 		const size = Engine.GetGUIObjectByName("iosToolbar").getComputedSize();
 		log("iOS toolbar: ready at " + Math.round(size.left) + "," + Math.round(size.top) + " - " + Math.round(size.right) + "," + Math.round(size.bottom));
 	}

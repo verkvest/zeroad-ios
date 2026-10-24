@@ -85,6 +85,27 @@ js = patch(js, """	const scale = +Engine.ConfigDB_GetValue("user", "gui.scale");
 		"right": vMax.x / scale - insetLeft,
 		"bottom": vMax.y / scale - insetTop
 	};""", "updateBandbox")
+# Fat-finger tolerance: a tap that misses every unit retries in two rings around the point.
+js = js.replace("Engine.PickEntityAtPoint(", "iosPickEntityAtPoint(")
+js = js.replace(HOOK_FN.lstrip("\n")[:40], """// --- iOS port: tap tolerance --------------------------------------------------------
+function iosPickEntityAtPoint(x, y)
+{
+	const ent = Engine.PickEntityAtPoint(x, y);
+	if (ent)
+		return ent;
+	const scale = +(Engine.ConfigDB_GetValue("user", "ios.gui.scale") || 1);
+	const radius = +(Engine.ConfigDB_GetValue("user", "ios.taptolerance") || 16) * scale;
+	for (const r of [radius / 2, radius])
+		for (let a = 0; a < 8; ++a)
+		{
+			const hit = Engine.PickEntityAtPoint(Math.round(x + r * Math.cos(a * Math.PI / 4)), Math.round(y + r * Math.sin(a * Math.PI / 4)));
+			if (hit)
+				return hit;
+		}
+	return 0;
+}
+
+""" + HOOK_FN.lstrip("\n")[:40], 1)
 write("gui/session/input.js", js)
 
 # --- Main menu: one-tap "Quick Play vs AI" ----------------------------------------------
@@ -121,8 +142,65 @@ mainmenu = patch(mainmenu, """	Engine.GetGUIObjectByName("userReport").onTick = 
 """, "mainmenu init")
 write("gui/pregame/mainmenu.js", mainmenu)
 
+# --- Phone HUD: enlarge the desktop session panels ------------------------------------
+import re
+
+def scale_sizes(text, k, attrs=("size",)):
+    """Multiply every pixel offset (not the percentages) in size="..." attributes by k."""
+    def tok(t):
+        m = re.match(r"^(-?\d+(?:\.\d+)?%)?([+-]?\d+(?:\.\d+)?)?$", t)
+        if not m or not m.group(2):
+            return t
+        v = int(round(float(m.group(2)) * k))
+        return (m.group(1) or "") + (("+" if v >= 0 else "") + str(v) if m.group(1) else str(v))
+    def fix(value):
+        return " ".join(tok(t) for t in value.split())
+    for attr in attrs:
+        text = re.sub(r'(\s%s=")([^"]*)(")' % attr, lambda m: m.group(1) + fix(m.group(2)) + m.group(3), text)
+    return text
+
+ICON_K = 1.7  # 38px desktop icons -> 65px = 43pt at the phone GUI scale
+TOP_K = 1.4
+names = ZIP.namelist()
+for name in names:
+    if re.match(r"gui/session/selection_panels_(left|right)/[^/]+\.xml$", name) or name in (
+            "gui/session/selection_panels_middle/unit_commands.xml",
+            "gui/session/selection_panels_middle/multiple_details_area.xml"):
+        write(name, scale_sizes(ZIP.read(name).decode("utf-8"), ICON_K))
+for name in names:
+    if re.match(r"gui/session/top_panel/(IconButtons/)?[^/]+\.xml$", name) or name in (
+            "gui/session/TopPanel.xml", "gui/session/PanelEntities.xml", "gui/session/Menu.xml"):
+        text = scale_sizes(ZIP.read(name).decode("utf-8"), TOP_K)
+        if name.endswith("Counters.xml"):
+            text = patch(text, 'size="0 0 50%-199 100%" name="resourceCounts"', 'size="0 0 100%-430 100%" name="resourceCounts"', "counters")
+        write(name, text)
+single = ZIP.read("gui/session/selection_panels_middle/single_details_area.xml").decode("utf-8")
+write("gui/session/selection_panels_middle/single_details_area.xml",
+      patch(single, 'size="4 4 100%-4 100%-44"', 'size="4 4 100%-4 100%-74"', "single details"))
+styles = ZIP.read("gui/session/styles.xml").decode("utf-8")
+styles = patch(styles, '<style name="resourceText"\n\t\ttextcolor="white"\n\t\tfont="sans-bold-stroke-14"',
+               '<style name="resourceText"\n\t\ttextcolor="white"\n\t\tfont="sans-bold-stroke-20"', "resourceText")
+styles = patch(styles, '<style name="gathererCounts"\n\t\ttextcolor="200 200 200"\n\t\tfont="sans-bold-stroke-13"',
+               '<style name="gathererCounts"\n\t\ttextcolor="200 200 200"\n\t\tfont="sans-bold-stroke-16"', "gathererCounts")
+write("gui/session/styles.xml", styles)
+
+# Main menu: taller buttons with a bigger font, wider panel.
+handler = ZIP.read("gui/pregame/MainMenuItemHandler.js").decode("utf-8")
+handler = patch(handler, "MainMenuItemHandler.prototype.ButtonHeight = 28;", "MainMenuItemHandler.prototype.ButtonHeight = 44;", "ButtonHeight")
+handler = patch(handler, "MainMenuItemHandler.prototype.Margin = 4;", "MainMenuItemHandler.prototype.Margin = 5;", "Margin")
+write("gui/pregame/MainMenuItemHandler.js", handler)
+panel = ZIP.read("gui/pregame/menupanel.xml").decode("utf-8")
+panel = patch(panel, 'size="60 -2 300 100%+2" z="50"', 'size="40 -2 380 100%+2" z="50"', "mainMenu size")
+panel = patch(panel, '<object name="mainMenuButtons" size="8 146 100%-8 346" z="60">', '<object name="mainMenuButtons" size="10 146 100%-10 100%-4" z="60">', "buttons size")
+panel = patch(panel, '<object name="mainMenuButton[n]" type="button" style="StoneButtonFancy" tooltip_style="pgToolTip"/>',
+              '<object name="mainMenuButton[n]" type="button" style="StoneButtonFancy" font="sans-bold-20" tooltip_style="pgToolTip"/>', "button font")
+panel = patch(panel, '<object type="button" style="StoneButtonFancy" tooltip_style="pgToolTip"/>',
+              '<object type="button" style="StoneButtonFancy" font="sans-bold-20" tooltip_style="pgToolTip"/>', "submenu font")
+panel = patch(panel, 'style="SubmenuPanel" size="60 0 300 0%"', 'style="SubmenuPanel" size="40 0 380 0%"', "submenu size")
+write("gui/pregame/menupanel.xml", panel)
+
 for name in ("page_ios_quickplay.xml", "ios_quickplay/quickplay.xml", "ios_quickplay/quickplay.js",
-             "session/session_objects/ios_toolbar.xml", "session/ios_toolbar.js"):
+             "session/session_objects/ios_toolbar.xml", "session/ios_toolbar.js", "session/ios_hud.js"):
     write("gui/" + name, open(os.path.join(HERE, "mod", "gui", name), encoding="utf-8").read())
 json.dump({
     "name": "ios",
