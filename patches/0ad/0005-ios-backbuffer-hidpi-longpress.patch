@@ -1,0 +1,158 @@
+diff --git a/source/lib/external_libraries/opengles2_wrapper.h b/source/lib/external_libraries/opengles2_wrapper.h
+index 00b8bca..568f6bd 100644
+--- a/source/lib/external_libraries/opengles2_wrapper.h
++++ b/source/lib/external_libraries/opengles2_wrapper.h
+@@ -66,7 +66,19 @@
+ #define glBufferSubDataARB glBufferSubData
+ #define glDeleteBuffersARB glDeleteBuffers
+ #define glGenBuffersARB glGenBuffers
++#include "lib/sysdep/os.h"
++#if OS_IOS
++// iOS has no default framebuffer: SDL renders into its own FBO (SDL_SysWMinfo::info.uikit.framebuffer),
++// so binding framebuffer 0 ("the backbuffer") must bind SDL's FBO instead.
++extern GLuint g_iOSDefaultFramebuffer;
++inline void ios_BindFramebuffer(GLenum target, GLuint framebuffer)
++{
++	glBindFramebuffer(target, framebuffer ? framebuffer : g_iOSDefaultFramebuffer);
++}
++#define glBindFramebufferEXT ios_BindFramebuffer
++#else
+ #define glBindFramebufferEXT glBindFramebuffer
++#endif
+ #define glCheckFramebufferStatusEXT glCheckFramebufferStatus
+ #define glDeleteFramebuffersEXT glDeleteFramebuffers
+ #define glFramebufferTexture2DEXT glFramebufferTexture2D
+diff --git a/source/ps/GameSetup/GameSetup.cpp b/source/ps/GameSetup/GameSetup.cpp
+index 75f9888..2dacccb 100644
+--- a/source/ps/GameSetup/GameSetup.cpp
++++ b/source/ps/GameSetup/GameSetup.cpp
+@@ -330,6 +330,11 @@ static void InitSDL()
+ 	// Touches are translated by CTouchInput; SDL must not synthesize mouse events from them.
+ 	SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
+ #endif
++#if OS_IOS
++	// Don't let the screen dim/lock during a match; landscape only.
++	SDL_SetHint(SDL_HINT_IDLE_TIMER_DISABLED, "1");
++	SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
++#endif
+ #endif
+ 
+ #if SDL_VERSION_ATLEAST(2, 0, 14) && OS_WIN
+@@ -698,7 +703,13 @@ void InitGraphics(const CmdLineArgs& args, int flags, const std::vector<CStr>& i
+ 			Script::CreateObject(rq, &data, "isStartup", true);
+ 			if (!installedMods.empty())
+ 				Script::SetProperty(rq, data, "installedMods", installedMods);
++#if OS_IOS
++			LOGMESSAGE("iOS: opening first GUI page");
++#endif
+ 			InitPs(setup_gui, installedMods.empty() ? L"page_pregame.xml" : L"page_modmod.xml", &g_GUI->GetScriptInterface(), data);
++#if OS_IOS
++			LOGMESSAGE("iOS: first GUI page opened");
++#endif
+ 		}
+ 	}
+ 	catch (PSERROR_Game_World_MapLoadFailed& e)
+diff --git a/source/ps/TouchInput.cpp b/source/ps/TouchInput.cpp
+index c5f66e8..c1eee56 100644
+--- a/source/ps/TouchInput.cpp
++++ b/source/ps/TouchInput.cpp
+@@ -31,6 +31,8 @@
+ #include <SDL_mouse.h>
+ #include <cmath>
+ 
++extern int g_xres, g_yres;
++
+ namespace
+ {
+ // Wheel ticks per doubling of the finger spread.
+@@ -118,8 +120,14 @@ void CTouchInput::Pan(float x, float y, float dx, float dy)
+ 
+ void CTouchInput::Frame()
+ {
+-	for (const touch::Action& a : m_Gestures.Poll())
++	// Gestures are recognized in points (thresholds are in points); the engine works in drawable pixels.
++	int pw, ph;
++	WindowSize(pw, ph);
++	const float ratio = pw > 0 ? static_cast<float>(g_xres) / pw : 1.f;
++	m_Gestures.Update(timer_Time());
++	for (touch::Action a : m_Gestures.Poll())
+ 	{
++		a.x *= ratio; a.y *= ratio; a.dx *= ratio; a.dy *= ratio;
+ 		switch (a.type)
+ 		{
+ 		case touch::Action::LeftClick:
+diff --git a/source/ps/VideoMode.cpp b/source/ps/VideoMode.cpp
+index 8f59854..530d17d 100644
+--- a/source/ps/VideoMode.cpp
++++ b/source/ps/VideoMode.cpp
+@@ -48,6 +48,8 @@
+ #include "scriptinterface/ScriptInterface.h"
+ 
+ #include <SDL.h>
++#include <algorithm>
++#include <cmath>
+ #include <SDL_error.h>
+ #include <SDL_events.h>
+ #include <SDL_mouse.h>
+@@ -517,6 +519,17 @@ bool CVideoMode::SetVideoMode(int w, int h, int bpp, bool fullscreen)
+ 
+ 	// Grab the current video settings
+ 	SDL_GetWindowSize(m_Window, &m_CurrentW, &m_CurrentH);
++#if OS_IOS
++	// iOS: render and lay out the GUI in drawable pixels (Retina), touches are converted to pixels too.
++	SDL_GL_GetDrawableSize(m_Window, &m_CurrentW, &m_CurrentH);
++	if (g_ConfigDB.Get("ios.autoguiscale", true))
++	{
++		// Keep a logical GUI of at least ~1280x720, the smallest size 0 A.D.'s GUI is laid out for.
++		m_Scale = std::max(1.0f, std::min(m_CurrentH / 720.0f, m_CurrentW / 1280.0f));
++		m_Scale = std::floor(m_Scale * 20.0f) / 20.0f;
++	}
++	LOGMESSAGE("iOS: drawable %dx%d, GUI scale %.2f", m_CurrentW, m_CurrentH, m_Scale);
++#endif
+ 	m_CurrentBPP = bpp;
+ 
+ 	// #545: we need to constrain the window in fullscreen mode to avoid mouse
+@@ -814,6 +827,10 @@ void CVideoMode::UpdatePosition(int x, int y)
+ 
+ void CVideoMode::UpdateRenderer(int w, int h)
+ {
++#if OS_IOS
++	if (g_VideoMode.GetWindow())
++		SDL_GL_GetDrawableSize(g_VideoMode.GetWindow(), &w, &h);
++#endif
+ 	if (w < 2) w = 2; // avoid GL errors caused by invalid sizes
+ 	if (h < 2) h = 2;
+ 
+diff --git a/source/renderer/backend/gl/Device.cpp b/source/renderer/backend/gl/Device.cpp
+index f8495cb..c04817b 100644
+--- a/source/renderer/backend/gl/Device.cpp
++++ b/source/renderer/backend/gl/Device.cpp
+@@ -73,6 +73,11 @@ extern void* wutil_GetAppHDC();
+ 
+ #endif // !CONFIG2_GLES && (defined(SDL_VIDEO_DRIVER_X11) || defined(SDL_VIDEO_DRIVER_WAYLAND))
+ 
++#if OS_IOS
++#include <SDL_syswm.h>
++GLuint g_iOSDefaultFramebuffer = 0;
++#endif
++
+ namespace Renderer
+ {
+ 
+@@ -279,6 +284,16 @@ std::unique_ptr<IDevice> CDevice::Create(SDL_Window* window, const bool arb)
+ 		}
+ #else
+ 		ogl_Init(SDL_GL_GetProcAddress);
++#endif
++#if OS_IOS
++		{
++			SDL_SysWMinfo wminfo;
++			SDL_VERSION(&wminfo.version);
++			if (SDL_GetWindowWMInfo(window, &wminfo) && wminfo.subsystem == SDL_SYSWM_UIKIT)
++				g_iOSDefaultFramebuffer = wminfo.info.uikit.framebuffer;
++			LOGMESSAGE("iOS: SDL framebuffer %u, drawable %dx%d", g_iOSDefaultFramebuffer,
++				device->m_SurfaceDrawableWidth, device->m_SurfaceDrawableHeight);
++		}
+ #endif
+ 	}
+ 	else

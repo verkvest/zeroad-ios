@@ -1,6 +1,6 @@
 #!/bin/bash
 # Wraps the cross-compiled pyrogenesis binary into an iOS .app with the small
-# engine-only "mod" data mod (no game art) so it can be launched in the Simulator.
+# official game data (engine "mod" + mobile-repacked "public") so the full game runs.
 # Usage: PLATFORM=iphonesimulator scripts/package-engine-app.sh <out-dir>
 set -eo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -13,24 +13,37 @@ rm -rf "$APP"; mkdir -p "$APP/data/mods" "$OUTDIR"
 # copy the binary first: 'git sparse-checkout add' below prunes untracked files outside the cone (binaries/system)
 cp "$BIN" "$APP/pyrogenesis"
 
-# engine data: config + l10n from git (no LFS), and the engine-level 'mod' mod (GUI, shaders,
-# fonts) as the official packed mod.zip from the release data tarball (gitea LFS is too slow).
-# bsdtar --fast-read stops right after mod.zip, which precedes the 3.5 GB public.zip.
+# engine data: config + l10n from git (no LFS); game data from the repo's "mobile-data" release:
+#   mod.zip           official engine mod (GUI, shaders, fonts), unmodified from 0ad-0.28.0-unix-data.tar.xz
+#   public-mobile.zip official 'public' mod repacked for phones by scripts/pack-mobile-data.py
 (
 	cd "$Z"
 	GIT_LFS_SKIP_SMUDGE=1 git sparse-checkout add binaries/data/config binaries/data/l10n
 )
 cp -R "$Z/binaries/data/config" "$Z/binaries/data/l10n" "$APP/data/"
-DATA_URL="${ZEROAD_DATA_URL:-https://releases.wildfiregames.com/0ad-0.28.0-unix-data.tar.xz}"
-mkdir -p "$ROOT/build/data"
-if [ ! -f "$ROOT/build/data/mod.zip" ]; then
-	# macOS bsdtar decompresses xz itself; -q (fast read) stops after mod.zip, so curl then gets EPIPE (ignored)
-	curl -sSL --retry 3 "$DATA_URL" | \
-		tar -xJ -q -v -C "$ROOT/build/data" --strip-components 5 -f - "0ad-0.28.0/binaries/data/mods/mod/mod.zip" || true
-	ls -la "$ROOT/build/data" || true
+python3 "$ROOT/ios/ios-config.py" "$APP/data/config/default.cfg"
+DATA_REL="${ZEROAD_DATA_RELEASE:-https://github.com/verkvest/zeroad-ios/releases/download/mobile-data-0.28.0-v1}"
+D="$ROOT/build/data"; mkdir -p "$D"
+for f in mod.zip public-mobile.zip SHA256SUMS; do
+	[ -s "$D/$f" ] || curl -fsSL --retry 5 -o "$D/$f" "$DATA_REL/$f"
+done
+(cd "$D" && shasum -a 256 -c SHA256SUMS)
+mkdir -p "$APP/data/mods/mod" "$APP/data/mods/public"
+cp "$D/mod.zip" "$APP/data/mods/mod/mod.zip"
+if [ "${ZEROAD_ENGINE_ONLY:-0}" != 1 ]; then
+	cp "$D/public-mobile.zip" "$APP/data/mods/public/public.zip"
+	cat > "$APP/data/mods/public/mod.json" <<'JSON'
+{
+	"name": "0ad",
+	"version": "0.28.0",
+	"label": "0 A.D. Empires Ascendant",
+	"url": "https://play0ad.com",
+	"description": "A free, open-source, historical RTS game.",
+	"dependencies": []
+}
+JSON
 fi
-[ -s "$ROOT/build/data/mod.zip" ] || { echo "mod.zip download failed"; exit 1; }
-mkdir -p "$APP/data/mods/mod"; cp "$ROOT/build/data/mod.zip" "$APP/data/mods/mod/"
+cp "$ROOT/ios/CREDITS.txt" "$APP/CREDITS.txt"
 du -sh "$APP/data"
 
 sed -e 's/${MACOSX_BUNDLE_EXECUTABLE_NAME}/pyrogenesis/' \

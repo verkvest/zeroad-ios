@@ -27,8 +27,8 @@ for i in range(secs):
     if p.poll() is not None:
         print(f"app exited after ~{i+1}s with {p.returncode}", flush=True)
         break
-    if i in (15, secs - 2):
-        run("xcrun", "simctl", "io", udid, "screenshot", os.path.join(out, f"engine-{i+1}s.png"))
+    if i in (15, 45) or (i % 60 == 59) or i == secs - 2:
+        run("xcrun", "simctl", "io", udid, "screenshot", os.path.join(out, f"engine-{i+1:03d}s.png"))
 run("xcrun", "simctl", "terminate", udid, bundle)
 time.sleep(1)
 if p.poll() is None:

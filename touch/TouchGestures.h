@@ -5,6 +5,7 @@
  *  - one-finger tap          -> LeftClick
  *  - one-finger drag         -> DragStart / DragMove / DragEnd (left-button drag, e.g. selection box)
  *  - two-finger tap          -> RightClick (at the centroid)
+ *  - one-finger long press   -> RightClick (fires while the finger is still down; needs Update())
  *  - two-finger pan          -> Pan (centroid delta, pixels)
  *  - pinch                   -> Zoom (scale factor relative to previous frame, > 1 = fingers spread)
  *
@@ -41,6 +42,7 @@ struct Action
 struct Config
 {
 	double tapMaxTime = 0.35;         // s, max duration of a 1-finger tap
+	double longPressTime = 0.55;      // s, holding still this long = right click
 	float tapMaxMove = 12.f;          // px, max movement of a tap
 	double twoFingerTapMaxTime = 0.40; // s
 	float twoFingerTapMaxMove = 16.f;  // px (centroid movement and finger spread change)
@@ -56,6 +58,8 @@ public:
 	void FingerDown(int64_t id, float x, float y, double t);
 	void FingerMotion(int64_t id, float x, float y, double t);
 	void FingerUp(int64_t id, float x, float y, double t);
+	/// Call every frame with the current time (long-press detection).
+	void Update(double t);
 	/// Call when the app loses focus / touches are cancelled.
 	void Cancel();
 

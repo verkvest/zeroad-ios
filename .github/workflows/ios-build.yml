@@ -171,16 +171,16 @@ jobs:
         run: ios/build-engine.sh
       - uses: actions/cache@v4
         with:
-          path: build/data/mod.zip
-          key: zeroad-modzip-0.28.0
-      - name: Package Pyrogenesis.app (engine + 'mod' data only)
+          path: build/data
+          key: zeroad-mobile-data-0.28.0-v1
+      - name: Package Pyrogenesis.app (engine + game data)
         id: pkg
-        timeout-minutes: 20
+        timeout-minutes: 30
         run: scripts/package-engine-app.sh out
       - name: Launch engine in iOS Simulator
         if: steps.pkg.outcome == 'success' && matrix.platform == 'iphonesimulator'
-        timeout-minutes: 15
-        run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out 60 -mod=mod
+        timeout-minutes: 25
+        run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out 300
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -185,7 +185,7 @@ void Gestures::FingerUp(int64_t id, float x, float y, double t)
 	switch (m_State)
 	{
 	case ONE_PENDING:
-		if (t - m_StartTime <= m_Cfg.tapMaxTime && Dist(x, y, f->startX, f->startY) <= m_Cfg.tapMaxMove)
+		if (t - m_StartTime < m_Cfg.longPressTime && Dist(x, y, f->startX, f->startY) <= m_Cfg.tapMaxMove)
 			Emit(Action::LeftClick, f->startX, f->startY);
 		break;
 	case ONE_DRAG:
@@ -209,6 +209,19 @@ void Gestures::FingerUp(int64_t id, float x, float y, double t)
 
 	f->down = false;
 	m_State = ActiveFingers() == 0 ? IDLE : ENDING;
+}
+
+void Gestures::Update(double t)
+{
+	if (m_State != ONE_PENDING || t - m_StartTime < m_Cfg.longPressTime)
+		return;
+	for (const Finger& f : m_Fingers)
+		if (f.down)
+		{
+			Emit(Action::RightClick, f.startX, f.startY);
+			break;
+		}
+	m_State = ENDING;
 }
 
 void Gestures::Cancel()

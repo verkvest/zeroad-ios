@@ -26,11 +26,31 @@ int main()
 		auto a = g.Poll();
 		CHECK(a.size() == 1 && a[0].type == Action::LeftClick && a[0].x == 100);
 	}
-	{ // long press is not a tap
+	{ // long press without Update(): nothing (no tap)
 		touch::Gestures g;
 		g.FingerDown(1, 100, 100, 0.0);
 		g.FingerUp(1, 100, 100, 2.0);
 		CHECK(g.Poll().empty());
+	}
+	{ // long press -> right click while held, nothing on release
+		touch::Gestures g;
+		g.FingerDown(1, 100, 100, 0.0);
+		g.Update(0.3);
+		CHECK(g.Poll().empty());
+		g.Update(0.6);
+		auto a = g.Poll();
+		CHECK(a.size() == 1 && a[0].type == Action::RightClick && a[0].x == 100);
+		g.FingerMotion(1, 140, 100, 0.7);
+		g.FingerUp(1, 140, 100, 0.8);
+		CHECK(g.Poll().empty());
+	}
+	{ // slow tap (0.45 s) still a left click
+		touch::Gestures g;
+		g.FingerDown(1, 100, 100, 0.0);
+		g.Update(0.4);
+		g.FingerUp(1, 100, 100, 0.45);
+		auto a = g.Poll();
+		CHECK(a.size() == 1 && a[0].type == Action::LeftClick);
 	}
 	{ // drag
 		touch::Gestures g;

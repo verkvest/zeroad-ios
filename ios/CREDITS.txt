@@ -1,0 +1,9 @@
+0 A.D. Empires Ascendant — iOS port (unofficial)
+
+0 A.D. (c) Wildfire Games, https://play0ad.com
+Engine source code: GNU GPL v2 or later. Art, audio and other data: CC BY-SA 3.0.
+Game data in this app: the official 0 A.D. 0.28.0 release data; the 'public' mod has been repacked for
+mobile (smaller textures, re-encoded music, fewer bundled maps) — scripts/pack-mobile-data.py.
+Complete corresponding source of this port (patches, build scripts): https://github.com/verkvest/zeroad-ios
+Upstream sources: https://gitea.wildfiregames.com/0ad/0ad (tag v0.28.0).
+"0 A.D." and the 0 A.D. logo are trademarks of Wildfire Games. This port is not affiliated with Wildfire Games.
