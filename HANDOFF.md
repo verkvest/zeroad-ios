@@ -132,3 +132,24 @@ Updated: 2026-10-24 11:22 (Europe/Madrid)
 - Screenshots: workflow `.github/workflows/appstore-shots.yml` (triggered by force-pushing branch `appstore-shots`; reuses app artifact of ios-build run 40110433854; `-conf=ios.shots:true` runs `gui/session/ios_shots.js` scene with stock cheats). Run 40116061338 OK. Output (gitignored): `shots/appstore/iphone69-0{1..4}-*.png` 2868x1320, `shots/appstore/ipad13-0{1..4}-*.png` 2752x2064 (iPad sim still letterboxed in portrait despite UIRequiresFullScreen → 2064x1548 crop upscaled ×1.33).
 - Known shot-scene issues: all steps fire together at ~32 s (first session tick is late), camera moves don't seem to apply, army half hidden behind CC; own units die by ~120 s. Good enough for v1 set; improve camera placement for a nicer set later.
 - Review risks: GPL vs App Store terms, "0 A.D." trademark (name + main-menu logo "0 A.D. Empires Ascendant"), "Exit" button in main menu (Apple dislikes app-quit), price 49.99 € for free software.
+
+## Update 2026-10-24 ~21:20 Madrid — build 17 "Bronze Legions" (tag testflight-engine-12), App Store shots v3
+- Build 17: ios-testflight run 40122947315 (workflow_dispatch on tag testflight-engine-12, app=engine; the tag push itself was
+  skipped because the tagged commit message had [skip ci] — don't tag [skip ci] commits). Engine from ios-build run 40120025647 (47d3ecb).
+  ASC: VALID, IN_BETA_TESTING, in internal group "0 A.D. interno" (21:02 Madrid).
+- Review-risk fixes (ios/make-ios-mod.py): Exit hidden on iOS (iosHidden); the "0 A.D. Empires Ascendant" logo replaced by a text title
+  from ONE constant `APP_TITLE` (env IOS_APP_TITLE overrides) = "Bronze Legions"; 0ADLogo sprites removed from load/replay screens.
+  CFBundleDisplayName / window title also read APP_TITLE (package-engine-app.sh, make-engine-xcarchive.sh). Credits screen untouched.
+  Bundle id unchanged (es.verkvest.zeroad).
+- ASC en-US appInfoLocalization name = "Bronze Legions: Ancient RTS" (set via API with owner approval; was "0 A.D. Mobile").
+  Nothing else saved; nothing submitted; no price set.
+- Screenshots (shots/appstore/, gitignored): iphone69-01-mainmenu / 02-base-army / 03-battle / 04-overview (2868x1320),
+  ipad13-01..04 same names (2752x2064). From appstore-shots run 40122318499.
+  * Workflow: push an empty commit to branch appstore-shots (force); matrix of 2 jobs (iPhone Pro Max, iPad Pro 13 on runtime iOS-18
+    so it is truly landscape — iPadOS 26 letterboxes). Scene = ios/mod/gui/session/ios_shots.js, timeline in SIM seconds
+    (the sim runs ~0.1–0.2x real time: 520–560 s runs reach ~sim 41 s).
+  * iPhone Dynamic Island pill is baked into simctl screenshots even with --mask=ignored: menu shot = crop x≥160 + upscale;
+    in-game shots = pill area filled with a mirrored neighbour strip (x 30–166, y 455–865 of the rotated 2868x1320 frame).
+  * Known cosmetics: a stray "1/2 >" build-grid page button stays visible after deselecting (HUD bug, fix later);
+    palms near the CC partly cover the battle; civ differs per run (iPad got a different civ than iPhone).
+- Open review risk: on real iPadOS 26 the landscape-only app can be letterboxed (UIRequiresFullScreen deprecated).
