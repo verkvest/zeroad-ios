@@ -176,6 +176,7 @@ function iosToolbarTick()
 		iosToolbarPress(action);
 	}
 	iosHudTick();
+	iosShotsTick();
 	if (++g_IOSToolbarTicks % 15 == 0)
 		iosToolbarUpdate();
 }

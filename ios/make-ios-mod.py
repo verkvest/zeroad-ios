@@ -265,7 +265,7 @@ write("gui/pregame/BackgroundHandler.js", bg)
 
 
 for name in ("page_ios_quickplay.xml", "ios_quickplay/quickplay.xml", "ios_quickplay/quickplay.js",
-             "session/session_objects/ios_toolbar.xml", "session/ios_toolbar.js", "session/ios_hud.js",
+             "session/session_objects/ios_toolbar.xml", "session/ios_toolbar.js", "session/ios_hud.js", "session/ios_shots.js",
              "pregame/MainMenuItemHandler.js"):
     write("gui/" + name, open(os.path.join(HERE, "mod", "gui", name), encoding="utf-8").read())
 # --- Dialogs: fit the phone screen (~1125 x 603 GUI units inside the safe area) and make the

@@ -22,6 +22,10 @@ function init()
 				"behavior": "balanced"
 			});
 
+		// CI App Store screenshot scene (gui/session/ios_shots.js) needs the stock cheats.
+		if (Engine.ConfigDB_GetValue("user", "ios.shots") == "true")
+			settings.cheats.setEnabled(true);
+
 		const playerAssignments = {
 			"local": {
 				"player": 1,
