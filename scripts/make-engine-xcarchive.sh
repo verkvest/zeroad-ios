@@ -36,7 +36,12 @@ set_kv DTXcode string "$XV"
 set_kv DTXcodeBuild string "$XB"
 $PB -c "Delete :UIRequiredDeviceCapabilities" "$P" 2>/dev/null || true
 $PB -c "Add :UIRequiredDeviceCapabilities array" -c "Add :UIRequiredDeviceCapabilities:0 string arm64" "$P"
+set_kv NSBluetoothAlwaysUsageDescription string "Bluetooth is only used to connect game controllers."
 plutil -convert binary1 "$P"
+# App Store rejects BrowserEngineCore in non-browser apps (ITMS-91017)
+if xcrun otool -L "$APP/pyrogenesis" | grep -q BrowserEngine; then
+	echo "::error::pyrogenesis links BrowserEngineCore (ITMS-91017)"; exit 1
+fi
 file "$APP/pyrogenesis"
 xcrun vtool -show-build "$APP/pyrogenesis" | head -8 || true
 cat > "$ARCH/Info.plist" <<PL
