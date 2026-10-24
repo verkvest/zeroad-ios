@@ -1,13 +1,15 @@
 # App Store screenshots: reuse the simulator app of an ios-build run, refresh its ios mod from
 # this commit (ios/make-ios-mod.py), and record the -conf=ios.shots:true scene on a 6.9" iPhone
-# and a 13" iPad in landscape. Manual only.
+# and a 13" iPad in landscape. Runs on a push to the appstore-shots branch (or manually).
 name: appstore-shots
 on:
+  push:
+    branches: [appstore-shots]
   workflow_dispatch:
     inputs:
       build_run:
         description: ios-build run id that has the engine-iphonesimulator-log artifact
-        required: true
+        required: false
 jobs:
   shots:
     runs-on: macos-15
@@ -17,7 +19,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: engine-iphonesimulator-log
-          run-id: ${{ inputs.build_run }}
+          run-id: ${{ inputs.build_run || '40110433854' }}
           github-token: ${{ github.token }}
           path: art
       - name: Xcode 26
