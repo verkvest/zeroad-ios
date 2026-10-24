@@ -68,3 +68,19 @@ Updated: 2026-10-24 11:22 (Europe/Madrid)
   Main menu buttons 44 lu with 20px font. Camera default zoom 85 (was 120); Camera button resets angle/zoom.
 - GUI scale kept at ~2.0 for all pages (menus/dialogs need ~1100x600 logical); the session HUD is enlarged by layout instead.
 - Not done: game-setup page redesign (Quick Play is the one-tap path), paging in grids (grid grows instead).
+
+## Update 2026-10-24 ~16:10 (Madrid): touch rework, 56pt icons, dialogs (a1054b2)
+- **Gestures** (touch/TouchGestures, patch 0011): one-finger drag on the 3D view = camera pan
+  (`Action::box=false`; over a GUI control it is still a mouse drag, via new `CGUI::IsScreenPointOverObject`).
+  Long press 0.45 s = `LongPressArmed` (light haptic via UIImpactFeedbackGenerator, config
+  `ios.touch.armed` -> ring in ios_hud.js), then drag = box select; release without moving = right click.
+  Two-finger tap = right click, double tap = same type on screen (unchanged). No "frame" toggle.
+- **HUD** (ios_hud.js + gen_ios_overlay.py -> ios_toolbar.xml): ICON_K 2.2 (84 units = 56pt). Toolbar 7x2
+  (48pt) top left incl. Workers / Army (whole map); build/train grid 6 columns x 2 rows per page + page
+  button; research 2 rows below; queue 6; stances 3 per row; formations 3; garrison 3x2; X deselect
+  button next to the command row; Info card top right.
+- **Dialogs** (make-ios-mod.py): every `50%-A 50%-B 50%+C 50%+D` box clamped to 1090 x 584; buttons that
+  close/cancel/back (hotkey cancel, name or caption) grown to 66 units (44pt). In-game menu items 54 units.
+  Not done: tap-outside-to-close; mod "mod" msgbox not processed.
+- Self-test: long press + drag box at t=20, one-finger pan t=52; toolbar self-test opens diplomacy (176 s)
+  and the structure tree (188 s) for screenshots. Sim run 300 s.
