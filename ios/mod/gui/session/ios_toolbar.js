@@ -9,7 +9,7 @@ var g_IOSToolbarTicks = 0;
 var g_IOSToolbarSelfTest = Engine.ConfigDB_GetValue("user", "ios.touchtest") == "true" ?
 	[[104, "army"], [110, "stop"], [112, "idleworker"], [122, "page"], [130, "workers"], [134, "info"], [144, "info"],
 	 [146, "home"], [156, "map"], [162, "map"], [164, "camera"], [166, "speed"], [168, "pause"], [172, "pause"], [174, "speed"],
-	 [176, "test-diplomacy"], [184, "test-diplomacy-close"], [186, "deselect"], [188, "test-structree"]] : [];
+	 [176, "test-diplomacy"], [194, "test-diplomacy-close"], [196, "deselect"], [198, "test-options"]] : [];
 var g_IOSToolbarStart = 0;
 
 function iosToolbarPress(action)
@@ -58,8 +58,8 @@ function iosToolbarPress(action)
 	case "test-diplomacy-close":
 		g_DiplomacyDialog.close();
 		break;
-	case "test-structree":
-		Engine.PushGuiPage("page_structree.xml", { "civ": g_Players[g_ViewedPlayer].civ });
+	case "test-options":
+		Engine.OpenChildPage("page_options.xml");
 		break;
 	case "home":
 		iosSelectCivicCentre();

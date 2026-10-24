@@ -36,7 +36,7 @@ index 7c16807..a11dd34 100644
  	 * Returns the current screen coordinates of the cursor.
  	 */
 diff --git a/source/ps/TouchInput.cpp b/source/ps/TouchInput.cpp
-index 7bac72e..9b3f2d2 100644
+index 7bac72e..c3e483c 100644
 --- a/source/ps/TouchInput.cpp
 +++ b/source/ps/TouchInput.cpp
 @@ -21,6 +21,8 @@
@@ -48,10 +48,11 @@ index 7bac72e..9b3f2d2 100644
  #include "lib/external_libraries/libsdl.h"
  #include "lib/sysdep/os.h"
  #include "lib/timer.h"
-@@ -30,6 +32,10 @@
+@@ -30,6 +32,11 @@
  #include "ps/VideoMode.h"
  
  #include <SDL_events.h>
++#include <algorithm>
 +#if OS_IOS
 +#include <objc/message.h>
 +#include <objc/runtime.h>
@@ -59,7 +60,7 @@ index 7bac72e..9b3f2d2 100644
  #include <SDL_mouse.h>
  #include <cmath>
  #include <vector>
-@@ -54,6 +60,35 @@ void WindowSize(int& w, int& h)
+@@ -54,6 +61,35 @@ void WindowSize(int& w, int& h)
  		h = g_VideoMode.GetYRes();
  	}
  }
@@ -95,23 +96,48 @@ index 7bac72e..9b3f2d2 100644
  // --- Touch self-test (CI): "-conf=ios.touchtest:true" replays a scripted sequence of finger
  // events once a game has started, through the same path as real touches.
  struct TestTouch
-@@ -78,8 +113,13 @@ std::vector<TestTouch> MakeTouchTestScript()
+@@ -78,12 +114,18 @@ std::vector<TestTouch> MakeTouchTestScript()
  		s.push_back({t, SDL_FINGERDOWN, 1, x, y, label});
  		s.push_back({t + hold, SDL_FINGERUP, 1, x, y, nullptr});
  	};
 -	// 1. box-select everything around the screen center (one-finger drag)
 -	drag(20.0, 1, 0.25f, 0.25f, 0.75f, 0.80f, 0.8, "box select (one-finger drag)");
-+	// 1. box-select everything around the screen center (long press, then drag)
-+	s.push_back({20.0, SDL_FINGERDOWN, 1, 0.30f, 0.20f, "long press + drag -> box select"});
++	// Points are chosen off the phone HUD (toolbar top left, grids bottom left / right).
++	// 1. box-select the units around the Civic Centre (long press, then drag)
++	s.push_back({20.0, SDL_FINGERDOWN, 1, 0.62f, 0.22f, "long press + drag -> box select"});
 +	for (int i = 1; i <= 8; ++i)
-+		s.push_back({20.7 + 0.1 * i, SDL_FINGERMOTION, 1, 0.30f + 0.05f * i, 0.20f + 0.055f * i, nullptr});
-+	s.push_back({21.6, SDL_FINGERUP, 1, 0.70f, 0.64f, nullptr});
++		s.push_back({20.7 + 0.1 * i, SDL_FINGERMOTION, 1, 0.62f - 0.025f * i, 0.22f + 0.045f * i, nullptr});
++	s.push_back({21.6, SDL_FINGERUP, 1, 0.42f, 0.58f, nullptr});
 +	// 1b. plain one-finger drag -> camera pan (no selection change)
 +	drag(52.0, 1, 0.55f, 0.45f, 0.45f, 0.40f, 0.6, "one-finger drag -> camera pan");
  	// 2. tap on the ground with units selected -> move order
- 	press(30.0, 0.45f, 0.40f, 0.08, "tap ground -> move order");
+-	press(30.0, 0.45f, 0.40f, 0.08, "tap ground -> move order");
++	press(30.0, 0.60f, 0.35f, 0.08, "tap ground -> move order");
  	// 3. long press -> right click order
-@@ -252,14 +292,48 @@ void CTouchInput::Frame()
+-	press(45.0, 0.15f, 0.70f, 0.9, "long press -> right click order");
++	press(45.0, 0.62f, 0.30f, 0.9, "long press -> right click order");
+ 	// 4. two-finger pan
+ 	s.push_back({60.0, SDL_FINGERDOWN, 1, 0.40f, 0.50f, "two-finger pan"});
+ 	s.push_back({60.02, SDL_FINGERDOWN, 2, 0.60f, 0.50f, nullptr});
+@@ -108,6 +150,7 @@ std::vector<TestTouch> MakeTouchTestScript()
+ 	press(90.0, 0.50f, 0.55f, 0.08, "tap center (select)");
+ 	press(100.0, 0.50f, 0.55f, 0.08, "double tap center");
+ 	press(100.2, 0.50f, 0.55f, 0.08, nullptr);
++	std::stable_sort(s.begin(), s.end(), [](const TestTouch& a, const TestTouch& b) { return a.t < b.t; });
+ 	return s;
+ }
+ 
+@@ -147,6 +190,9 @@ void RunTouchTest()
+ 		ev.tfinger.y = tt.y;
+ 		ev.tfinger.pressure = 1.f;
+ 		SDL_PushEvent(&ev);
++		// Slow simulator frames: keep scripted pauses (long press) as at least one real frame.
++		if (next < script.size() && script[next].t - tt.t >= 0.3)
++			break;
+ 	}
+ }
+ } // anonymous namespace
+@@ -252,14 +298,48 @@ void CTouchInput::Frame()
  			PushMouseButton(SDL_BUTTON_RIGHT, true, a.x, a.y);
  			PushMouseButton(SDL_BUTTON_RIGHT, false, a.x, a.y);
  			break;
