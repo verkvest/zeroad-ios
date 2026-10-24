@@ -332,6 +332,29 @@ ojs = patch(ojs, """		body.size.top = g_OptionControlOffset + i * (g_OptionContr
 		};""", "option columns")
 write("gui/options/options.js", ojs)
 
+# Game setup page on a 603-unit-high phone screen: lower top panel, smaller map preview,
+# no tips panel, more room for the settings, 44pt Back / Start buttons.
+gs = ZIP.read("gui/gamesetup/Pages/GameSetupPage/GameSetupPage.xml").decode("utf-8")
+for old, new, what in (
+        ('name="topPanel" size="24 40 100%-24 336"', 'name="topPanel" size="8 36 100%-8 232"', "top panel"),
+        ('<object size="0 0 100%-416 100%">', '<object size="0 0 100%-310 100%">', "players"),
+        ('<object size="100%-402 0 100% 100%">', '<object size="100%-300 0 100% 100%">', "map preview"),
+        ('name="centerPanel" size="0 0 100% 100%-64"', 'name="centerPanel" size="0 0 100% 100%-80"', "center panel"),
+        ('name="centerLeftPanel" size="24 0 100% 100%"', 'name="centerLeftPanel" size="8 0 100% 100%"', "center left"),
+        ('<object size="0 346 100%-795-24 100%">', '<object size="0 240 100%-795-24 100%">', "chat"),
+        ('<object size="0 370 500-24 560">', '<object size="0 370 500-24 560" hidden="true">', "tips"),
+        ('name="centerCenterPanel" size="100%-315 346 100%-315 100%"', 'name="centerCenterPanel" size="100%-315 240 100%-315 100%"', "settings"),
+        ('name="centerRightPanel" size="100%-315 346 100% 100%"', 'name="centerRightPanel" size="100%-315 240 100%-8 100%"', "tabs"),
+        ('name="bottomPanel" size="0 0 100% 100%-22"', 'name="bottomPanel" size="0 0 100%-8 100%-8"', "bottom panel"),
+        ('<object size="20 100%-32-10 100%-664 100%+9">', '<object size="8 100%-66 100%-664 100%">', "tooltip"),
+        ('<object size="100%-656 100%-32 100%-486 100%">', '<object size="100%-656 100%-50 100%-486 100%-18">', "warning"),
+        ('<object size="100%-470 100%-32 100%-330 100%">', '<object size="100%-470 100%-50 100%-330 100%-18">', "saved game"),
+        ('name="bottomRightPanel" size="100%-314 100%-32 100% 100%"', 'name="bottomRightPanel" size="100%-314 100%-66 100% 100%"', "buttons"),
+        ('<object size="0 0 140 100%">', '<object size="0 0 150 100%">', "cancel"),
+        ('<object size="150 0 290 100%">', '<object size="158 0 100% 100%">', "start")):
+    gs = patch(gs, old, new, "gamesetup " + what)
+write("gui/gamesetup/Pages/GameSetupPage/GameSetupPage.xml", gs)
+
 def current(name):
     path = os.path.join(out, name)
     if os.path.exists(path):

@@ -89,3 +89,20 @@ Updated: 2026-10-24 11:22 (Europe/Madrid)
 - 39e1d43: self-test only (sorted touch script, points off the HUD, diplomacy + options screenshots);
   first run showed toolbar quick-select OK (9 workers / 5 army / CC), but the touch script was unsorted
   and hit HUD buttons, and Engine.PushGuiPage is not available in 0.28 (use OpenChildPage).
+
+## Update 2026-10-24 ~17:00 Madrid — build 15 work (tag testflight-engine-10)
+- Tooltips (patch 0012): no hover/automatic tooltips on iOS; a long press on a GUI object shows its
+  tooltip for 2 s, hidden on the next touch; no tooltip and no right click from map taps.
+- Gestures: long press is armed on the next finger event too (slow frames); touchdemo self-test
+  disables long press.
+- Main menu (ios/mod/gui/pregame/MainMenuItemHandler.js + make-ios-mod.py): left panel 500 lu,
+  logo 300x76, two columns of 72-lu (48pt) buttons centred vertically, submenu = one column to the
+  right aligned with the pressed button and clamped on screen; no description/notice, community
+  (Donate etc.), organisation logo, user-report panel, welcome splash, Scenario Editor or
+  "Welcome Screen" item; background overscan.
+- Message boxes (from mod.zip, next to public zip): 44pt buttons, fit the screen, tap on the
+  faded background = first (cancel) button.
+- Options page: full screen, title inside, 44-lu tabs, 36-lu rows in as many columns as needed,
+  four equal 44pt buttons at the bottom.
+- CI: main-menu sim run is 120 s with -conf=ios.menutest:true (Single-player submenu at 15 s,
+  game setup at 40 s after the menu opens); sim-launch relaunches an app with no output after 20 s.
