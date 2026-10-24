@@ -12,7 +12,7 @@ js = ZIP.read("gui/session/input.js").decode("utf-8")
 HERE = os.path.dirname(os.path.abspath(__file__))
 # Neutral title shown instead of the "0 A.D. Empires Ascendant" logo in the main menu
 # (App Store trademark caution). Change it here (or set IOS_APP_TITLE) to the final app name.
-APP_TITLE = os.environ.get("IOS_APP_TITLE", "Ancient RTS")
+APP_TITLE = os.environ.get("IOS_APP_TITLE", "Bronze Legions")
 
 
 def write(rel, text):
