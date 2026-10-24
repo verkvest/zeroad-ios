@@ -117,3 +117,10 @@ Updated: 2026-10-24 11:22 (Europe/Madrid)
   stick out ~70 lu past the page frame on the right, and a button fragment ("...aps") shows behind
   the description. Likely JS code mixing absolute getComputedSize (which includes the 93-lu
   safe-area inset) with relative sizes; to fix next.
+
+## Update 2026-10-24 ~18:50 Madrid — build 16 (tag testflight-engine-11 at 2ce854a)
+- Build 16: uploaded 18:24, VALID 18:29 Madrid, internal IN_BETA_TESTING ("0 A.D. interno"). External submit 422 ANOTHER_BUILD_IN_REVIEW (build 11 still in review).
+- Changes: game setup settings columns laid out deterministically left of the tab column (removes the stray off-screen "…aps" column; GameSettingsPanel.js override in make-ios-mod.py) + map preview fits its box; options rows 40 lu / sans-bold-16, tab tooltips without keyboard hints; touch self-test taps an Options tab at 205 s (no tooltip seen); new AppIcon (hoplite, touchdemo/Assets.xcassets, single 1024 RGB universal, actool generates sizes); iPad: patch 0010 detects tablets (short side >= 600pt) and uses logical GUI >= 1400x880 (iPad Air 11 sim: scale 1.70, logical 1424x981; iPhone unchanged 2.00 / 1125x603); CI has an iPad landscape sim step (SIM_DEVICE "^iPad (Air|Pro) 11").
+- Screens (run 40110433854): shots/b16/gamesetup.jpg, options-ingame.jpg, ipad-mainmenu.jpg, ipad-hud.jpg, ipad-options.jpg. Nothing clipped.
+- Notes: the iPad simulator screenshot is portrait with the landscape app letterboxed (rows 635-1785 cropped). The sim .app has no compiled icon (only the TestFlight xcarchive runs actool). The iPad sim step needs ~relaunch on first boot.
+- App name: CFBundleDisplayName/CFBundleName = "0 A.D."; ASC record name (appInfoLocalizations en-US) is still "0 A.D. Verkvest" — not renamed (the owner said not to rename the ASC record; needs the owner's explicit OK).
