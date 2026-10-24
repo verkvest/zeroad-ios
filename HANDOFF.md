@@ -84,3 +84,8 @@ Updated: 2026-10-24 11:22 (Europe/Madrid)
   Not done: tap-outside-to-close; mod "mod" msgbox not processed.
 - Self-test: long press + drag box at t=20, one-finger pan t=52; toolbar self-test opens diplomacy (176 s)
   and the structure tree (188 s) for screenshots. Sim run 300 s.
+- **Build 14** = tag testflight-engine-9 at a1054b2 (ios-build 40097922753, testflight run 40099486908):
+  ASC VALID 16:02 Madrid, internal IN_BETA_TESTING; external submit blocked (build 11 still in review).
+- 39e1d43: self-test only (sorted touch script, points off the HUD, diplomacy + options screenshots);
+  first run showed toolbar quick-select OK (9 workers / 5 army / CC), but the touch script was unsorted
+  and hit HUD buttons, and Engine.PushGuiPage is not available in 0.28 (use OpenChildPage).
