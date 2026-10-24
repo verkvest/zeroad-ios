@@ -106,3 +106,14 @@ Updated: 2026-10-24 11:22 (Europe/Madrid)
   four equal 44pt buttons at the bottom.
 - CI: main-menu sim run is 120 s with -conf=ios.menutest:true (Single-player submenu at 15 s,
   game setup at 40 s after the menu opens); sim-launch relaunches an app with no output after 20 s.
+- Game setup: top panel 8..232, map preview 300 wide, tips hidden, settings/tabs from 240,
+  44pt Back/Start.
+- **Build 15 = tag testflight-engine-10 at 9512f9c** (ios-build 40105949957, testflight
+  40106540439): VALID 17:29 Madrid, internal IN_BETA_TESTING (group "0 A.D. interno");
+  external beta submit still 422 ANOTHER_BUILD_IN_REVIEW (build 11 in review).
+- Sim screenshots (landscape, half size, gitignored): shots/b15/mainmenu.jpg,
+  mainmenu-singleplayer-submenu.jpg, gamesetup.jpg, options.jpg. Main menu and options are clean.
+  Game setup is better but not perfect: the map preview and the right tabs/description column
+  stick out ~70 lu past the page frame on the right, and a button fragment ("...aps") shows behind
+  the description. Likely JS code mixing absolute getComputedSize (which includes the 93-lu
+  safe-area inset) with relative sizes; to fix next.
