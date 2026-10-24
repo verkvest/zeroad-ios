@@ -7,7 +7,9 @@ var g_IOSToolbarTicks = 0;
 
 // CI self-test (-conf=ios.touchtest:true): press the toolbar buttons from script.
 var g_IOSToolbarSelfTest = Engine.ConfigDB_GetValue("user", "ios.touchtest") == "true" ?
-	[[112, "army"], [118, "stop"], [122, "idleworker"], [134, "info"], [146, "info"], [148, "home"], [158, "map"], [166, "map"], [170, "camera"], [176, "speed"], [182, "pause"], [188, "pause"], [190, "speed"]] : [];
+	[[104, "army"], [110, "stop"], [112, "idleworker"], [122, "page"], [130, "workers"], [134, "info"], [144, "info"],
+	 [146, "home"], [156, "map"], [162, "map"], [164, "camera"], [166, "speed"], [168, "pause"], [172, "pause"], [174, "speed"],
+	 [176, "test-diplomacy"], [184, "test-diplomacy-close"], [186, "deselect"], [188, "test-structree"]] : [];
 var g_IOSToolbarStart = 0;
 
 function iosToolbarPress(action)
@@ -39,7 +41,25 @@ function iosToolbarPress(action)
 		iosHudToggle("map");
 		break;
 	case "army":
-		iosSelectArmyOnScreen();
+		iosSelectOwn(["Soldier", "Siege", "Warship", "Hero", "Champion"], "army");
+		break;
+	case "workers":
+		iosSelectOwn(["FemaleCitizen", "Citizen", "Worker"], "workers");
+		break;
+	case "deselect":
+		g_Selection.reset();
+		break;
+	case "page":
+		iosHudNextPage();
+		break;
+	case "test-diplomacy":
+		g_DiplomacyDialog.open();
+		break;
+	case "test-diplomacy-close":
+		g_DiplomacyDialog.close();
+		break;
+	case "test-structree":
+		Engine.PushGuiPage("page_structree.xml", { "civ": g_Players[g_ViewedPlayer].civ });
 		break;
 	case "home":
 		iosSelectCivicCentre();
@@ -63,13 +83,17 @@ function iosToolbarPress(action)
 	iosToolbarUpdate();
 }
 
-function iosSelectArmyOnScreen()
+// Select all own units (whole map) having one of the classes; structures excluded.
+function iosSelectOwn(classes, what)
 {
-	const military = ["Soldier", "Siege", "Warship", "Hero", "Champion"];
-	const ents = Engine.PickPlayerEntitiesOnScreen(g_ViewedPlayer).filter(ent => {
+	if (g_ViewedPlayer <= 0)
+		return;
+	const ents = Engine.GuiInterfaceCall("GetPlayerEntities", g_ViewedPlayer).filter(ent => {
 		const state = GetEntityState(ent);
-		return state && !hasClass(state, "Structure") && military.some(cls => hasClass(state, cls));
+		return state && state.identity && !hasClass(state, "Structure") && !state.foundation &&
+			classes.some(cls => hasClass(state, cls));
 	});
+	log("iOS toolbar: " + ents.length + " " + what);
 	if (!ents.length)
 		return;
 	g_Selection.reset();
@@ -119,6 +143,7 @@ function iosSelectCivicCentre()
 function iosToolbarUpdate()
 {
 	const hasSelection = g_Selection.size() > 0;
+	Engine.GetGUIObjectByName("iosDeselect").hidden = !hasSelection;
 	for (const action of ["stop", "work", "unload", "delete"])
 		Engine.GetGUIObjectByName("iosButton_" + action).enabled = hasSelection;
 	for (const action of ["stop", "work", "unload", "delete"])
@@ -150,6 +175,7 @@ function iosToolbarTick()
 		log("iOS toolbar self-test: " + action + " (selected " + g_Selection.size() + ")");
 		iosToolbarPress(action);
 	}
+	iosHudTick();
 	if (++g_IOSToolbarTicks % 15 == 0)
 		iosToolbarUpdate();
 }

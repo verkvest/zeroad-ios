@@ -4,7 +4,7 @@ gui/session/input.js (GPL-2.0+, (c) Wildfire Games) with a touch hook added, so 
 a tap with own units selected issues the context command (move / attack / gather /
 build ...), exactly like a right click on desktop.
 Usage: make-ios-mod.py <public.zip> <out-mod-dir>"""
-import json, os, sys, zipfile
+import json, os, re, sys, zipfile
 
 src, out = sys.argv[1], sys.argv[2]
 ZIP = zipfile.ZipFile(src)
@@ -159,7 +159,7 @@ def scale_sizes(text, k, attrs=("size",)):
         text = re.sub(r'(\s%s=")([^"]*)(")' % attr, lambda m: m.group(1) + fix(m.group(2)) + m.group(3), text)
     return text
 
-ICON_K = 1.7  # 38px desktop icons -> 65px = 43pt at the phone GUI scale
+ICON_K = 2.2  # 38px desktop icons -> 84 GUI units = 56pt at the phone GUI scale (2.0 on 3x)
 TOP_K = 1.4
 names = ZIP.namelist()
 for name in names:
@@ -169,14 +169,27 @@ for name in names:
         write(name, scale_sizes(ZIP.read(name).decode("utf-8"), ICON_K))
 for name in names:
     if re.match(r"gui/session/top_panel/(IconButtons/)?[^/]+\.xml$", name) or name in (
-            "gui/session/TopPanel.xml", "gui/session/PanelEntities.xml", "gui/session/Menu.xml"):
+            "gui/session/TopPanel.xml", "gui/session/PanelEntities.xml"):
         text = scale_sizes(ZIP.read(name).decode("utf-8"), TOP_K)
         if name.endswith("Counters.xml"):
             text = patch(text, 'size="0 0 50%-199 100%" name="resourceCounts"', 'size="0 0 100%-430 100%" name="resourceCounts"', "counters")
         write(name, text)
+# In-game menu: 54-unit (36pt) items, wider panel, bigger font (all items fit in 603 units).
+menu = ZIP.read("gui/session/Menu.xml").decode("utf-8")
+menu = patch(menu, 'size="100%-164 0 100% 0"', 'size="100%-300 0 100% 0"', "menu panel")
+menu = patch(menu, 'size="4 4 100%-4 32"', 'size="4 4 100%-4 54"\n\t\t\tfont="sans-bold-20"', "menu button")
+write("gui/session/Menu.xml", menu)
 single = ZIP.read("gui/session/selection_panels_middle/single_details_area.xml").decode("utf-8")
 write("gui/session/selection_panels_middle/single_details_area.xml",
-      patch(single, 'size="4 4 100%-4 100%-44"', 'size="4 4 100%-4 100%-74"', "single details"))
+      patch(single, 'size="4 4 100%-4 100%-44"', 'size="4 4 100%-4 100%-92"', "single details"))
+
+# Paged 6-column build / train grid (ios_hud.js): let iosPanelPosition place those buttons.
+uc = ZIP.read("gui/session/unit_commands.js").decode("utf-8")
+uc = patch(uc, "function setPanelObjectPosition(object, index, rowLength, vMargin = 1, hMargin = 1)\n{\n",
+           "function setPanelObjectPosition(object, index, rowLength, vMargin = 1, hMargin = 1)\n{\n"
+           "\tif (typeof iosPanelPosition == \"function\" && iosPanelPosition(object, index, rowLength))\n\t\treturn;\n",
+           "setPanelObjectPosition")
+write("gui/session/unit_commands.js", uc)
 styles = ZIP.read("gui/session/styles.xml").decode("utf-8")
 styles = patch(styles, '<style name="resourceText"\n\t\ttextcolor="white"\n\t\tfont="sans-bold-stroke-14"',
                '<style name="resourceText"\n\t\ttextcolor="white"\n\t\tfont="sans-bold-stroke-20"', "resourceText")
@@ -202,6 +215,84 @@ write("gui/pregame/menupanel.xml", panel)
 for name in ("page_ios_quickplay.xml", "ios_quickplay/quickplay.xml", "ios_quickplay/quickplay.js",
              "session/session_objects/ios_toolbar.xml", "session/ios_toolbar.js", "session/ios_hud.js"):
     write("gui/" + name, open(os.path.join(HERE, "mod", "gui", name), encoding="utf-8").read())
+# --- Dialogs: fit the phone screen (~1125 x 603 GUI units inside the safe area) and make the
+# close / back / cancel buttons at least 66 units (44pt) tall, growing upwards from their bottom edge.
+MAX_HALF_W, MAX_HALF_H, MIN_BUTTON_H = 545, 292, 66
+
+
+def current(name):
+    path = os.path.join(out, name)
+    if os.path.exists(path):
+        return open(path, encoding="utf-8").read()
+    return ZIP.read(name).decode("utf-8")
+
+
+def clamp_dialog(m):
+    a, b, c, d = (int(m.group(i)) for i in range(1, 5))
+    kx = min(1.0, MAX_HALF_W / max(a, c))
+    ky = min(1.0, MAX_HALF_H / max(b, d))
+    if kx == 1.0 and ky == 1.0:
+        return m.group(0)
+    return 'size="50%%-%d 50%%-%d 50%%+%d 50%%+%d"' % (a * kx, b * ky, c * kx, d * ky)
+
+
+def split_offset(t):
+    m = re.match(r"^(-?\d+(?:\.\d+)?%)?([+-]?\d+(?:\.\d+)?)?$", t)
+    if not m:
+        return None
+    return m.group(1) or "", float(m.group(2) or 0)
+
+
+CLOSE_CAPTION = re.compile(r'<translatableAttribute id="caption"[^>]*>\s*(Close|Back|Cancel|Quit|Return|Exit|OK|Main Menu)\s*<')
+
+
+def grow_close_buttons(text):
+    count = 0
+
+    def fix(m):
+        nonlocal count
+        tag = m.group(0)
+        if 'type="button"' not in tag:
+            return tag
+        after = text[m.end():m.end() + 400]
+        after = after.split("<object", 1)[0]
+        name = re.search(r'name="([^"]*)"', tag)
+        if not ('hotkey="cancel"' in tag or (name and re.search(r"close|cancel|back|quit|exit|continue|replay", name.group(1), re.I))
+                or CLOSE_CAPTION.search(after)):
+            return tag
+        size = re.search(r'size="([^"]*)"', tag)
+        if not size:
+            return tag
+        parts = size.group(1).split()
+        if len(parts) != 4:
+            return tag
+        top, bottom = split_offset(parts[1]), split_offset(parts[3])
+        if not top or not bottom or top[0] != bottom[0] or bottom[1] - top[1] >= MIN_BUTTON_H:
+            return tag
+        v = bottom[1] - MIN_BUTTON_H
+        parts[1] = bottom[0] + (("+" if v >= 0 else "") if bottom[0] else "") + str(int(v))
+        count += 1
+        return tag.replace(size.group(0), 'size="%s"' % " ".join(parts))
+
+    text = re.sub(r"<object\b[^>]*>", fix, text)
+    return text, count
+
+
+dialogs = buttons = 0
+for name in names:
+    if not (name.startswith("gui/") and name.endswith(".xml")):
+        continue
+    text = current(name)
+    new = re.sub(r'size="50%-(\d+) 50%-(\d+) 50%\+(\d+) 50%\+(\d+)"', clamp_dialog, text)
+    # Credits: full height with a fixed half width of 473.
+    new = new.replace('size="50%-473 24 50%+473 100%-24"', 'size="50%-545 8 50%+545 100%-8"')
+    dialogs += new != text
+    new, n = grow_close_buttons(new)
+    buttons += n
+    if new != text:
+        write(name, new)
+print("dialogs: %d files clamped to the phone screen, %d close buttons enlarged" % (dialogs, buttons))
+
 json.dump({
     "name": "ios",
     "version": "0.28.0",
