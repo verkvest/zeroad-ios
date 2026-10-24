@@ -28,6 +28,11 @@ tar xfJ "$FOLDER.tar.xz" --exclude=js/src/tests/non262 --exclude=js/src/tests/te
 		echo "Applying $(basename "$p")"
 		patch -p1 <"$p"
 	done
+	# iOS devices use 16 KiB pages and pthread_attr_setstacksize() rejects sizes
+	# that are not page multiples. Upstream's 2 MiB - 2*4 KiB helper stack size
+	# trips MOZ_RELEASE_ASSERT(!r) in Thread::create at JS_NewContext (crash in TestFlight build 11).
+	sed -i.bak 's/2048 \* 1024 - 2 \* 4096;/2048 * 1024 - 2 * 16384;/' js/src/vm/InternalThreadPool.cpp
+	grep -q '2048 \* 1024 - 2 \* 16384;' js/src/vm/InternalThreadPool.cpp || { echo "helper stack size patch failed"; exit 1; }
 )
 cd "$FOLDER"
 export MOZ_NOSPAM=1
