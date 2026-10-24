@@ -153,3 +153,12 @@ Updated: 2026-10-24 11:22 (Europe/Madrid)
   * Known cosmetics: a stray "1/2 >" build-grid page button stays visible after deselecting (HUD bug, fix later);
     palms near the CC partly cover the battle; civ differs per run (iPad got a different civ than iPhone).
 - Open review risk: on real iPadOS 26 the landscape-only app can be letterboxed (UIRequiresFullScreen deprecated).
+
+## Update 2026-10-24 ~23:10 Madrid — App Store preview videos + listing texts (NOT uploaded)
+- appstore-shots run 40130706770 (SIM_VIDEO=1 → out/<dev>/run.mp4 via simctl recordVideo; engine app from ios-build 40120025647 = build 17).
+  The simulator renders ~1 fps, so the preview is a time-lapse (segments sped up ~13–35x).
+- scripts/make-preview-video.py → shots/appstore/preview-iphone69.mp4 (1920x886) and preview-ipad13.mp4 (1600x1200):
+  H.264 High@4.0, 30 fps, ~10.7 Mbps, 27–28 s, silent AAC 256k stereo 48 kHz. Captions: Build your city / Raise your legions /
+  Command epic battles / Ancient RTS for iPhone and iPad. Poster frame suggestion: 00:00:15 (preview-*-poster.png). Check frames in shots/appstore/preview-frames/.
+- HUD fix: the build-grid page button ("1/2 >") is hidden when nothing is selected (ios_hud.js).
+- docs/appstore-listing.md: EN/ES subtitle, promo, description, keywords, screenshot captions with character counts.
