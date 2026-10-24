@@ -101,62 +101,53 @@ function iosShotsTick()
 			if (g_IOSShots.cc)
 				iosShotsCheat("createunits", {
 					"selected": [g_IOSShots.cc],
-					"parameter": 40,
+					"parameter": 32,
 					"templates": ["units/athen/infantry_spearman_b", "units/athen/infantry_spearman_b", "units/athen/infantry_archer_b",
 						"units/athen/cavalry_javelineer_b", "units/athen/champion_infantry", "units/athen/infantry_spearman_a",
 						"units/athen/infantry_javelineer_b", "units/athen/cavalry_swordsman_b"]
 				});
 		}],
 		// Base view: the civic centre with the new army around it.
-		[5, () => {
+		[4, () => iosShotsLook(iosShotsPos(g_IOSShots.cc), 95, 0.6)],
+		// The army marches onto the open ground in front of the civic centre (HUD with the army selected).
+		[8, () => {
 			g_IOSShots.army = iosShotsNew();
 			log("iOS shots: army of " + g_IOSShots.army.length);
-			iosShotsLook(iosShotsPos(g_IOSShots.cc), 95, 0.6);
-		}],
-		// The army marches into the open towards the enemy.
-		[16, () => {
-			const p = iosShotsAhead(iosShotsPos(g_IOSShots.cc), 55);
+			const p = iosShotsAhead(iosShotsPos(g_IOSShots.cc), 32);
 			Engine.PostNetworkCommand({ "type": "walk", "entities": g_IOSShots.army, "x": p.x, "z": p.z, "queued": false, "pushFront": false });
 			g_Selection.reset();
 			g_Selection.addList(g_IOSShots.army);
-			iosShotsLook(iosShotsCentre(g_IOSShots.army), 75, 0.35);
+			iosShotsLook(p, 66, 0.6);
 		}],
-		[22, () => iosShotsLook(iosShotsCentre(g_IOSShots.army), 62, 0.35)],
-		[28, () => iosShotsLook(iosShotsCentre(g_IOSShots.army), 62, 0.35)],
-		[32, () => {
+		[12, () => iosShotsLook(iosShotsCentre(g_IOSShots.army), 62, 0.6)],
+		// Battle: a second army comes out of the civic centre and is given to player 2.
+		[15, () => {
 			g_IOSShots.before = Engine.GuiInterfaceCall("GetPlayerEntities");
 			iosShotsCheat("createunits", {
 				"selected": [g_IOSShots.cc],
-				"parameter": 36,
+				"parameter": 30,
 				"templates": ["units/pers/infantry_spearman_b", "units/pers/infantry_archer_b", "units/pers/cavalry_archer_b",
 					"units/pers/champion_infantry", "units/pers/cavalry_javelineer_b", "units/pers/infantry_javelineer_b"]
 			});
 		}],
-		[35, () => {
+		[17, () => {
 			g_IOSShots.enemy = iosShotsNew().filter(ent => g_IOSShots.army.indexOf(ent) == -1);
 			log("iOS shots: enemy of " + g_IOSShots.enemy.length);
-			const p = iosShotsAhead(iosShotsCentre(g_IOSShots.army), 40, 10);
-			Engine.PostNetworkCommand({ "type": "walk", "entities": g_IOSShots.enemy, "x": p.x, "z": p.z, "queued": false, "pushFront": false });
-			iosShotsLook(iosShotsCentre(g_IOSShots.army), 70, 0.35);
-		}],
-		[44, () => iosShotsLook(iosShotsCentre(all()), 72, 0.5)],
-		// Battle: the second army becomes player 2's, right next to ours.
-		[52, () => {
 			iosShotsCheat("convertunit", { "selected": g_IOSShots.enemy, "parameter": 2 });
 			g_Selection.reset();
-			g_Selection.addList(g_IOSShots.army);
-			iosShotsLook(iosShotsCentre(all()), 66, 0.5);
+			iosShotsLook(iosShotsAhead(iosShotsPos(g_IOSShots.cc), 18), 70, 0.6);
 		}],
-		[58, () => iosShotsLook(iosShotsCentre(all()), 62, 0.5)],
-		[64, () => iosShotsLook(iosShotsCentre(all()), 62, 0.6)],
-		[70, () => iosShotsLook(iosShotsCentre(all()), 62, 0.6)],
-		[76, () => iosShotsLook(iosShotsCentre(all()), 66, 0.6)],
-		// Overview: wider view of the field and the base, nothing selected.
-		[84, () => {
+		[21, () => iosShotsLook(iosShotsCentre(all()), 64, 0.6)],
+		[25, () => iosShotsLook(iosShotsCentre(all()), 62, 0.6)],
+		[29, () => iosShotsLook(iosShotsCentre(all()), 62, 0.6)],
+		[33, () => iosShotsLook(iosShotsCentre(all()), 64, 0.6)],
+		[37, () => iosShotsLook(iosShotsCentre(all()), 66, 0.6)],
+		// Overview: wider view of the field and the base, nothing selected, mini-map on.
+		[41, () => {
 			g_Selection.reset();
 			if (!g_IOSHud.map)
 				iosHudToggle("map");
-			iosShotsLook(iosShotsAhead(iosShotsPos(g_IOSShots.cc), 25), 120, 0.3, 0.75);
+			iosShotsLook(iosShotsAhead(iosShotsPos(g_IOSShots.cc), 12), 115, 0.6, 0.75);
 		}]
 	];
 	while (g_IOSShots.step < steps.length && t >= steps[g_IOSShots.step][0])

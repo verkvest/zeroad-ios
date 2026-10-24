@@ -13,7 +13,13 @@ on:
 jobs:
   shots:
     runs-on: macos-15
-    timeout-minutes: 75
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { out: iphone, device: "^iPhone \\d+ Pro Max$", runtime: "", secs: 520 }
+          - { out: ipad, device: "^iPad Pro 13", runtime: "iOS-18", secs: 560 }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -41,26 +47,18 @@ jobs:
           # Full-screen landscape on iPad too (otherwise the simulator letterboxes it in portrait).
           /usr/libexec/PlistBuddy -c "Add :UIRequiresFullScreen bool true" "$APP/Info.plist" || true
           codesign --force --sign - "$APP"
-      - name: iPhone 6.9"
+      - name: Screenshots ${{ matrix.out }}
         continue-on-error: true
-        timeout-minutes: 20
+        timeout-minutes: 32
         env:
-          SHOT_EVERY: "4"
+          SHOT_EVERY: "6"
           SHOT_MASK: ignored
-          SIM_DEVICE: "^iPhone \\d+ Pro Max$"
-        run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out/iphone 260 -conf=ios.autoquickplay:true -conf=ios.shots:true
-      - name: iPad 13"
-        continue-on-error: true
-        timeout-minutes: 25
-        env:
-          SHOT_EVERY: "4"
-          SHOT_MASK: ignored
-          SIM_DEVICE: "^iPad Pro 13"
+          SIM_DEVICE: ${{ matrix.device }}
           # iPadOS 26 letterboxes a landscape-only app in the portrait simulator; iPadOS 18 rotates it.
-          SIM_RUNTIME: "iOS-18"
-        run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out/ipad 280 -conf=ios.autoquickplay:true -conf=ios.shots:true
+          SIM_RUNTIME: ${{ matrix.runtime }}
+        run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out/${{ matrix.out }} ${{ matrix.secs }} -conf=ios.autoquickplay:true -conf=ios.shots:true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: appstore-shots
+          name: appstore-shots-${{ matrix.out }}
           path: out
