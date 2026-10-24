@@ -310,10 +310,12 @@ for old, new in (("50%-339 100%-44 50%-177 100%-16", "12 100%-78 25%-6 100%-12")
                  ("50%+5 100%-44 50%+167 100%-16", "50%+4 100%-78 75%-2 100%-12"),
                  ("50%+177 100%-44 50%+339 100%-16", "75%+6 100%-78 100%-12 100%-12")):
     opt = patch(opt, 'size="%s"' % old, 'size="%s"' % new, "options button")
+opt = patch(opt, '<object name="option_label[n]" size="0 0 65%-10 100%" type="text" style="ModernLeftLabelText"/>',
+            '<object name="option_label[n]" size="0 0 65%-10 100%" type="text" style="ModernLeftLabelText" font="sans-bold-16"/>', "option label font")
 write("gui/options/options.xml", opt)
 ojs = ZIP.read("gui/options/options.js").decode("utf-8")
 ojs = patch(ojs, "var g_TabButtonHeight = 34;", "var g_TabButtonHeight = 44; // iOS port", "tab height")
-ojs = patch(ojs, "var g_OptionControlHeight = 26;", "var g_OptionControlHeight = 36; // iOS port", "row height")
+ojs = patch(ojs, "var g_OptionControlHeight = 26;", "var g_OptionControlHeight = 40; // iOS port", "row height")
 ojs = patch(ojs, """		body.size.top = g_OptionControlOffset + i * (g_OptionControlHeight + g_OptionControlDist);
 		body.size.bottom = body.size.top + g_OptionControlHeight;""", """		// iOS port: as many columns as needed to fit the phone screen.
 		const area = Engine.GetGUIObjectByName("option_controls").getComputedSize();
@@ -331,6 +333,12 @@ ojs = patch(ojs, """		body.size.top = g_OptionControlOffset + i * (g_OptionContr
 			"bottom": g_OptionControlOffset + row * (g_OptionControlHeight + g_OptionControlDist) + g_OptionControlHeight
 		};""", "option columns")
 write("gui/options/options.js", ojs)
+# Tab buttons: no keyboard / mouse-wheel hints in their tooltips on a phone.
+tabs = ZIP.read("gui/common/tab_buttons.js").decode("utf-8")
+i = tabs.index("\t\tbutton.tooltip = (categoriesData[category].tooltip")
+j = tabs.index("\n\n", i)
+tabs = tabs[:i] + "\t\t// iOS port: no keyboard hints.\n\t\tbutton.tooltip = categoriesData[category].tooltip || \"\";" + tabs[j:]
+write("gui/common/tab_buttons.js", tabs)
 
 # Game setup page on a 603-unit-high phone screen: lower top panel, smaller map preview,
 # no tips panel, more room for the settings, 44pt Back / Start buttons.
