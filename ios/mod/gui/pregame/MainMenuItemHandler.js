@@ -18,15 +18,23 @@ export class MainMenuItemHandler
 		this.submenu = Engine.GetGUIObjectByName("submenu");
 		this.submenuButtons = Engine.GetGUIObjectByName("submenuButtons");
 
-		this.setupMenuButtons(this.mainMenuButtons.children, this.menuItems, this.Columns);
+		this.setupMenuButtons(this.mainMenuButtons.children, this.menuItems, this.Columns, this.mainMenuButtons);
 		this.setupHotkeys(this.menuItems);
 
 		Engine.GetGUIObjectByName("closeMenuButton").onPress = this.closeSubmenu.bind(this);
 		log("iOS: main menu " + this.menuItems.length + " items in " + this.Columns + " columns");
 	}
 
-	setupMenuButtons(buttons, menuItems, columns)
+	setupMenuButtons(buttons, menuItems, columns, centerIn)
 	{
+		// Main menu: centre the button grid vertically in its area.
+		let offset = 0;
+		if (centerIn)
+		{
+			const area = centerIn.getComputedSize();
+			const rows = Math.ceil(menuItems.length / columns);
+			offset = Math.max(0, Math.floor((area.bottom - area.top - rows * (this.ButtonHeight + this.Margin) + this.Margin) / 2));
+		}
 		buttons.forEach((button, i) => {
 			const item = menuItems.filter(it => !it.iosHidden)[i];
 			button.hidden = !item;
@@ -39,8 +47,8 @@ export class MainMenuItemHandler
 				"rleft": 100 * col / columns,
 				"right": col == columns - 1 ? 0 : -this.Margin / 2,
 				"rright": 100 * (col + 1) / columns,
-				"top": (this.ButtonHeight + this.Margin) * row,
-				"bottom": (this.ButtonHeight + this.Margin) * row + this.ButtonHeight
+				"top": offset + (this.ButtonHeight + this.Margin) * row,
+				"bottom": offset + (this.ButtonHeight + this.Margin) * row + this.ButtonHeight
 			};
 			button.caption = item.caption;
 			button.tooltip = item.tooltip;

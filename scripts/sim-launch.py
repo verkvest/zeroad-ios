@@ -25,10 +25,21 @@ run("xcrun", "simctl", "boot", udid)
 run("xcrun", "simctl", "bootstatus", udid, "-b", check=True)
 run("xcrun", "simctl", "install", udid, app, check=True)
 logf = open(os.path.join(out, "engine-run.log"), "w")
-p = subprocess.Popen(["xcrun", "simctl", "launch", "--console-pty", "--terminate-running-process", udid, bundle] + args,
-                     stdout=logf, stderr=subprocess.STDOUT)
+def launch():
+    return subprocess.Popen(["xcrun", "simctl", "launch", "--console-pty", "--terminate-running-process", udid, bundle] + args,
+                            stdout=logf, stderr=subprocess.STDOUT)
+p = launch()
+relaunched = False
 for i in range(secs):
     time.sleep(1)
+    # A freshly booted simulator (still migrating data) sometimes never starts the app: no engine
+    # output after 20 s -> launch once more.
+    if i == 20 and not relaunched and os.path.getsize(os.path.join(out, "engine-run.log")) < 300:
+        print("no engine output after 20 s, relaunching", flush=True)
+        relaunched = True
+        run("xcrun", "simctl", "terminate", udid, bundle)
+        p.kill()
+        p = launch()
     if p.poll() is not None:
         print(f"app exited after ~{i+1}s with {p.returncode}", flush=True)
         break

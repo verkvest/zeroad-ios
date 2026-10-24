@@ -256,6 +256,11 @@ write("gui/pregame/SplashscreenHandler.js", splash)
 # Background layers: 2 x height wide on desktop leaves the edges visible on a 19.5:9 phone.
 bg = ZIP.read("gui/pregame/BackgroundHandler.js").decode("utf-8")
 bg = patch(bg, BG_OLD, BG_NEW, "background")
+bg = patch(bg, """				"left": left,
+				"top": backgroundsSize.top,
+				"right": backgroundsSize.right,""", """				"left": left,
+				"top": backgroundsSize.top,
+				"right": backgroundsSize.right + 400, // iOS port: cover the right safe-area strip""", "background tiling")
 write("gui/pregame/BackgroundHandler.js", bg)
 
 
@@ -292,6 +297,40 @@ if os.path.exists(MODZIP_PATH):
     print("msgbox: patched from", MODZIP_PATH)
 else:
     print("msgbox: no mod.zip next to", src)
+
+# Options page: full phone screen, title inside, 44pt bottom buttons, bigger tabs and rows,
+# options laid out in two columns when a category has more than fit in one.
+opt = ZIP.read("gui/options/options.xml").decode("utf-8")
+opt = patch(opt, 'size="50%-400 50%-374 50%+400 50%+374"', 'size="50%-545 8 50%+545 100%-8"', "options size")
+opt = patch(opt, 'type="text" size="50%-128 -16 50%+128 16"', 'type="text" size="50%-128 2 50%+128 30"', "options title")
+opt = patch(opt, '<object size="15 16 230 100%-52">', '<object size="12 32 232 100%-84">', "options tabs")
+opt = patch(opt, 'sprite="ModernDarkBoxGold" size="240 16 785 100%-52"', 'sprite="ModernDarkBoxGold" size="240 32 100%-12 100%-84"', "options controls")
+for old, new in (("50%-339 100%-44 50%-177 100%-16", "12 100%-78 25%-6 100%-12"),
+                 ("50%-167 100%-44 50%-5 100%-16", "25%+2 100%-78 50%-4 100%-12"),
+                 ("50%+5 100%-44 50%+167 100%-16", "50%+4 100%-78 75%-2 100%-12"),
+                 ("50%+177 100%-44 50%+339 100%-16", "75%+6 100%-78 100%-12 100%-12")):
+    opt = patch(opt, 'size="%s"' % old, 'size="%s"' % new, "options button")
+write("gui/options/options.xml", opt)
+ojs = ZIP.read("gui/options/options.js").decode("utf-8")
+ojs = patch(ojs, "var g_TabButtonHeight = 34;", "var g_TabButtonHeight = 44; // iOS port", "tab height")
+ojs = patch(ojs, "var g_OptionControlHeight = 26;", "var g_OptionControlHeight = 36; // iOS port", "row height")
+ojs = patch(ojs, """		body.size.top = g_OptionControlOffset + i * (g_OptionControlHeight + g_OptionControlDist);
+		body.size.bottom = body.size.top + g_OptionControlHeight;""", """		// iOS port: as many columns as needed to fit the phone screen.
+		const area = Engine.GetGUIObjectByName("option_controls").getComputedSize();
+		const perColumn = Math.max(1, Math.floor((area.bottom - area.top - 2 * g_OptionControlOffset) / (g_OptionControlHeight + g_OptionControlDist)));
+		const count = g_Options[g_TabCategorySelected].options.length;
+		const columns = Math.ceil(count / perColumn);
+		const column = Math.floor(i / perColumn);
+		const row = i % perColumn;
+		body.size = {
+			"left": 8,
+			"rleft": 100 * column / columns,
+			"right": -8,
+			"rright": 100 * (column + 1) / columns,
+			"top": g_OptionControlOffset + row * (g_OptionControlHeight + g_OptionControlDist),
+			"bottom": g_OptionControlOffset + row * (g_OptionControlHeight + g_OptionControlDist) + g_OptionControlHeight
+		};""", "option columns")
+write("gui/options/options.js", ojs)
 
 def current(name):
     path = os.path.join(out, name)
