@@ -1,6 +1,6 @@
 # HANDOFF — 0 A.D. iOS port (state notes for the next agent)
 
-Updated: 2026-10-24 11:15 (Europe/Madrid)
+Updated: 2026-10-24 11:22 (Europe/Madrid)
 
 ## Milestones
 - M1 main menu: DONE. CI sim screenshots: shots/m1-mainmenu/. TestFlight build 9 (tag testflight-engine-4,
@@ -13,12 +13,12 @@ Updated: 2026-10-24 11:15 (Europe/Madrid)
 1. When 40080912107 finishes: `gh run download 40080912107 -n engine-iphonesimulator-log`, check
    out/skirmish/mainlog.html for "iOS touchtest:", "iOS touch: action", "tap -> command", camera pivot
    changes; copy PNGs to shots/m2-touchtest/.
-2. If device engine job succeeded: tag `testflight-engine-5` (build number = ios-testflight run_number,
-   CFBundleVersion set automatically) -> milestone "skirmish playable".
+2. DONE: tag testflight-engine-5 -> TestFlight build 10 (ios-testflight run 40081193988, uploaded OK,
+   app from ios-build run 40078973413 = camera fix + tap-command mod). Next tag: testflight-engine-6.
 3. Then: real-device perf feedback from Aleksandr, touch UI polish (bigger GUI scale option).
 
 ## Notes
-- Next free TestFlight tag: testflight-engine-5.
+- Next free TestFlight tag: testflight-engine-6. Tag a commit WITHOUT [skip ci] in its message, or the tag push is skipped.
 - Pushing to feature/ios-prototype cancels the running ios-build (concurrency); use "[skip ci]" for doc commits.
 - PR-triggered duplicate runs are cancelled manually to save macOS runners.
 - Patches 0001..0008 in patches/0ad; regenerate a patch by committing tmp in build/0ad, editing, `git diff HEAD -- source`, then `git reset --mixed a2cae4d`.
