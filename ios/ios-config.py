@@ -23,6 +23,11 @@ SETTINGS = {
     ("", "textures.maxanisotropy"): "2",
     ("", "materialmgr.quality"): "2.0",
     ("", "pauseonfocusloss"): "true",
+    ("", "particles"): "false",
+    # Phones: no-JIT SpiderMonkey makes the AI expensive; default new AIs to "easy".
+    ("gui.gamesetup", "aidifficulty"): "1",
+    ("gui.gamesetup", "aibehavior"): '"balanced"',
+    ("gui.gamesetup", "enabletips"): "false",
     ("adaptivefps", "menu"): "30",
     ("adaptivefps", "session"): "60",
     ("gui.splashscreen", "enable"): "false",

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- iOS port: on-screen buttons for actions that are keyboard-only on desktop. -->
+<object name="iosToolbar" size="100%-162 44 100%-4 334" z="30">
+	<action on="Tick">iosToolbarTick();</action>
+	<object name="iosButton_pause" type="button" style="StoneButton" font="sans-bold-16" size="0 0 76 52" tooltip_style="sessionToolTip" tooltip="Pause or resume the game">
+		<translatableAttribute id="caption">Pause</translatableAttribute>
+		<action on="Press">iosToolbarPress("pause");</action>
+	</object>
+	<object name="iosButton_speed" type="button" style="StoneButton" font="sans-bold-16" size="80 0 156 52" tooltip_style="sessionToolTip" tooltip="Change the game speed">
+		<translatableAttribute id="caption">Speed</translatableAttribute>
+		<action on="Press">iosToolbarPress("speed");</action>
+	</object>
+	<object name="iosButton_idleworker" type="button" style="StoneButton" font="sans-bold-16" size="0 58 76 110" tooltip_style="sessionToolTip" tooltip="Select the next idle worker">
+		<translatableAttribute id="caption">Idle W</translatableAttribute>
+		<action on="Press">iosToolbarPress("idleworker");</action>
+	</object>
+	<object name="iosButton_idlearmy" type="button" style="StoneButton" font="sans-bold-16" size="80 58 156 110" tooltip_style="sessionToolTip" tooltip="Select the next idle soldier">
+		<translatableAttribute id="caption">Idle A</translatableAttribute>
+		<action on="Press">iosToolbarPress("idlearmy");</action>
+	</object>
+	<object name="iosButton_army" type="button" style="StoneButton" font="sans-bold-16" size="0 116 76 168" tooltip_style="sessionToolTip" tooltip="Select all military units on screen">
+		<translatableAttribute id="caption">Army</translatableAttribute>
+		<action on="Press">iosToolbarPress("army");</action>
+	</object>
+	<object name="iosButton_home" type="button" style="StoneButton" font="sans-bold-16" size="80 116 156 168" tooltip_style="sessionToolTip" tooltip="Select and jump to your Civic Center">
+		<translatableAttribute id="caption">Home</translatableAttribute>
+		<action on="Press">iosToolbarPress("home");</action>
+	</object>
+	<object name="iosButton_stop" type="button" style="StoneButton" font="sans-bold-16" size="0 174 76 226" tooltip_style="sessionToolTip" tooltip="Stop the selected units">
+		<translatableAttribute id="caption">Stop</translatableAttribute>
+		<action on="Press">iosToolbarPress("stop");</action>
+	</object>
+	<object name="iosButton_work" type="button" style="StoneButton" font="sans-bold-16" size="80 174 156 226" tooltip_style="sessionToolTip" tooltip="Send the selected units back to work">
+		<translatableAttribute id="caption">Work</translatableAttribute>
+		<action on="Press">iosToolbarPress("work");</action>
+	</object>
+	<object name="iosButton_unload" type="button" style="StoneButton" font="sans-bold-16" size="0 232 76 284" tooltip_style="sessionToolTip" tooltip="Unload all garrisoned units from the selection">
+		<translatableAttribute id="caption">Unload</translatableAttribute>
+		<action on="Press">iosToolbarPress("unload");</action>
+	</object>
+	<object name="iosButton_delete" type="button" style="StoneButton" font="sans-bold-16" size="80 232 156 284" tooltip_style="sessionToolTip" tooltip="Delete the selected units or structures">
+		<translatableAttribute id="caption">Delete</translatableAttribute>
+		<action on="Press">iosToolbarPress("delete");</action>
+	</object>
+</object>
