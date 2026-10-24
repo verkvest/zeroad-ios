@@ -150,6 +150,17 @@ jobs:
             -allowProvisioningUpdates -authenticationKeyPath "$KEYFILE" \
             -authenticationKeyID "$APPSTORE_API_KEY_ID" -authenticationKeyIssuerID "$APPSTORE_API_ISSUER_ID"
           ls -la "$RUNNER_TEMP/export"
+          # Verify the home-screen name inside the exported IPA before uploading (engine app).
+          if [ "$APP_KIND" = engine ]; then
+            rm -rf "$RUNNER_TEMP/ipacheck"; mkdir -p "$RUNNER_TEMP/ipacheck"
+            unzip -q "$RUNNER_TEMP"/export/*.ipa 'Payload/*.app/Info.plist' 'Payload/*.lproj/*' -d "$RUNNER_TEMP/ipacheck" || true
+            IP=$(ls "$RUNNER_TEMP"/ipacheck/Payload/*.app/Info.plist)
+            DN=$(/usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$IP"); BN=$(/usr/libexec/PlistBuddy -c "Print :CFBundleName" "$IP")
+            WANT=$(python3 -c 'import re,sys; print(re.search(r"\"IOS_APP_TITLE\", \"([^\"]+)\"", open(sys.argv[1]).read()).group(1))' ios/make-ios-mod.py)
+            echo "IPA CFBundleDisplayName=$DN CFBundleName=$BN CFBundleVersion=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$IP") want=$WANT"
+            find "$RUNNER_TEMP/ipacheck" -name '*.strings' -print
+            [ "$DN" = "$WANT" ] || { echo "::error::CFBundleDisplayName is '$DN', expected '$WANT'"; exit 1; }
+          fi
           xcrun altool --upload-app -t ios -f "$RUNNER_TEMP"/export/*.ipa \
             --apiKey "$APPSTORE_API_KEY_ID" --apiIssuer "$APPSTORE_API_ISSUER_ID" 2>&1 | tee "$RUNNER_TEMP/upload.log"
           # altool may exit 0 on errors; fail explicitly
