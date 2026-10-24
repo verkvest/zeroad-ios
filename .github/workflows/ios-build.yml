@@ -180,12 +180,12 @@ jobs:
       - name: Launch engine in iOS Simulator
         if: steps.pkg.outcome == 'success' && matrix.platform == 'iphonesimulator'
         timeout-minutes: 15
-        run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out 180
+        run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out 90
       - name: Autostart a skirmish (Acropolis Bay, 1 Petra AI) in iOS Simulator
         if: steps.pkg.outcome == 'success' && matrix.platform == 'iphonesimulator'
         continue-on-error: true
         timeout-minutes: 20
-        run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out/skirmish 420 -autostart=skirmishes/acropolis_bay_2p -autostart-ai=2:petra -autostart-aidiff=2:1
+        run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out/skirmish 300 -autostart=skirmishes/acropolis_bay_2p -autostart-ai=2:petra -autostart-aidiff=2:1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
