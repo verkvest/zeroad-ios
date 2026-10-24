@@ -67,14 +67,22 @@ function iosSelectArmyOnScreen()
 	g_Selection.addList(ents);
 }
 
+var g_IOSHomeIndex = 0;
+
+// Select (and centre the camera on) the player's Civic Centre; repeated presses cycle through all of them.
+// Skirmish maps place CCs under various template names, so match on the CivCentre class instead.
 function iosSelectCivicCentre()
 {
-	const player = g_Players[g_ViewedPlayer];
-	if (!player || !player.civ)
+	if (g_ViewedPlayer <= 0)
 		return;
-	const ccs = Engine.PickSimilarPlayerEntities("structures/" + player.civ + "/civil_centre", true, false, true);
-	if (ccs.length)
-		g_Selection.selectAndMoveTo(ccs[0]);
+	const ccs = Engine.GuiInterfaceCall("GetPlayerEntities", g_ViewedPlayer).filter(ent => {
+		const state = GetEntityState(ent);
+		return state && state.identity && state.identity.classes.indexOf("CivCentre") != -1 && !state.foundation;
+	}).sort((a, b) => a - b);
+	log("iOS toolbar: " + ccs.length + " civic centre(s)");
+	if (!ccs.length)
+		return;
+	g_Selection.selectAndMoveTo(ccs[g_IOSHomeIndex++ % ccs.length]);
 }
 
 function iosToolbarUpdate()
