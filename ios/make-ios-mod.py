@@ -10,6 +10,9 @@ src, out = sys.argv[1], sys.argv[2]
 ZIP = zipfile.ZipFile(src)
 js = ZIP.read("gui/session/input.js").decode("utf-8")
 HERE = os.path.dirname(os.path.abspath(__file__))
+# Neutral title shown instead of the "0 A.D. Empires Ascendant" logo in the main menu
+# (App Store trademark caution). Change it here (or set IOS_APP_TITLE) to the final app name.
+APP_TITLE = os.environ.get("IOS_APP_TITLE", "Ancient RTS")
 
 
 def write(rel, text):
@@ -122,6 +125,8 @@ items = patch(items, "export const mainMenuItems = [\n", """export const mainMen
 """, "mainMenuItems")
 items = patch(items, '\t{\n\t\t"caption": translate("Scenario Editor"),', '\t{\n\t\t"iosHidden": true,\n\t\t"caption": translate("Scenario Editor"),', "hide editor")
 items = patch(items, '\t\t\t\t"caption": translate("Welcome Screen"),', '\t\t\t\t"iosHidden": true,\n\t\t\t\t"caption": translate("Welcome Screen"),', "hide welcome")
+# Apple review: apps must not offer a "quit" button on iOS.
+items = patch(items, '\t{\n\t\t"caption": translate("Exit"),', '\t{\n\t\t"iosHidden": true,\n\t\t"caption": translate("Exit"),', "hide exit")
 write("gui/pregame/MainMenuItems.js", items)
 
 mainmenu = ZIP.read("gui/pregame/mainmenu.js").decode("utf-8")
@@ -242,13 +247,21 @@ panel = patch(panel, 'style="SubmenuPanel" size="60 0 300 0%"', 'style="SubmenuP
 panel = patch(panel, '<object name="submenuButtons" type="image" size="0 4 100%-4 100%-4"', '<object name="submenuButtons" type="image" size="6 6 100%-6 100%-6"', "submenu buttons")
 write("gui/pregame/menupanel.xml", panel)
 info = ZIP.read("gui/pregame/ProjectInformation.xml").decode("utf-8")
-info = patch(info, 'size="50%-110 10 50%+110 110"', 'size="50%-150 4 50%+150 80"', "logo")
+info = patch(info, '<object name="productLogo" type="image" ghost="true" size="50%-110 10 50%+110 110"/>',
+             '<object name="productLogo" type="text" ghost="true" size="8 6 100%-8 80" font="sans-bold-stroke-40" textcolor="255 222 150" text_align="center" text_valign="center"/>', "logo")
 info = patch(info, '<object type="image" style="TranslucentPanelThinBorder" size="8 100%-368 100%-8 100%-94">',
              '<object type="image" style="TranslucentPanelThinBorder" size="8 100%-368 100%-8 100%-94" hidden="true">', "description")
 info = patch(info, '<object size="4 100%-84 100%-4 100%-56" ghost="true">', '<object size="4 100%-84 100%-4 100%-56" ghost="true" hidden="true">', "organization")
 info = patch(info, 'name="productBuild" style="MediumTitleText" ghost="true" size="50%-128 100%-36 50%+128 100%"',
              'name="productBuild" style="MediumTitleText" ghost="true" size="8 100%-28 100%-8 100%-2"', "build")
 write("gui/pregame/ProjectInformation.xml", info)
+pinfo = ZIP.read("gui/pregame/ProjectInformation.js").decode("utf-8")
+pinfo = patch(pinfo, '\t"productLogo": {\n\t\t"sprite": "0ADLogo"\n\t},', '\t"productLogo": {\n\t\t"caption": %s\n\t},' % json.dumps(APP_TITLE), "title")
+write("gui/pregame/ProjectInformation.js", pinfo)
+# No product logo as an empty-state placeholder in the load-game and replay pages either.
+for name, old in (("gui/loadgame/load.xml", '<object name="invalidGame" size="650 105 870 205" type="image" sprite="0ADLogo" />'),
+                  ("gui/replaymenu/replay_menu.xml", '<object name="logo" size="50%-110 40 50%+110 140" type="image" sprite="0ADLogo"/>')):
+    write(name, patch(ZIP.read(name).decode("utf-8"), old, old.replace('sprite="0ADLogo"', 'sprite=""'), name))
 # No welcome splash screen on phones (its desktop layout does not fit).
 splash = ZIP.read("gui/pregame/SplashscreenHandler.js").decode("utf-8")
 splash = patch(splash, "\t\tif (this.showSplashScreen)\n\t\t\tthis.openPage();", "\t\t// iOS port: no welcome screen.", "splash")

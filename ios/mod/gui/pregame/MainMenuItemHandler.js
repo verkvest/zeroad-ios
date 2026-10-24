@@ -42,11 +42,13 @@ export class MainMenuItemHandler
 				return;
 			const row = Math.floor(i / columns);
 			const col = i % columns;
+			// A last button alone in its row spans the full width.
+			const span = i == menuItems.length - 1 && col == 0 ? columns : 1;
 			button.size = {
 				"left": col ? this.Margin / 2 : 0,
 				"rleft": 100 * col / columns,
-				"right": col == columns - 1 ? 0 : -this.Margin / 2,
-				"rright": 100 * (col + 1) / columns,
+				"right": col + span >= columns ? 0 : -this.Margin / 2,
+				"rright": 100 * (col + span) / columns,
 				"top": offset + (this.ButtonHeight + this.Margin) * row,
 				"bottom": offset + (this.ButtonHeight + this.Margin) * row + this.ButtonHeight
 			};

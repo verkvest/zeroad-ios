@@ -6,6 +6,8 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$1"; ARCH="$2"; BID="$3"; VER="$4"; BUILD="$5"
+# Home-screen name: the same neutral title as the main menu (APP_TITLE in ios/make-ios-mod.py).
+APP_TITLE="${IOS_APP_TITLE:-$(python3 -c 'import re,sys; print(re.search(r"\"IOS_APP_TITLE\", \"([^\"]+)\"", open(sys.argv[1]).read()).group(1))' "$ROOT/ios/make-ios-mod.py")}"
 rm -rf "$ARCH"; mkdir -p "$ARCH/Products/Applications"
 APP="$ARCH/Products/Applications/Pyrogenesis.app"
 cp -R "$SRC" "$APP"
@@ -24,7 +26,7 @@ while [ ${#XV} -lt 4 ]; do XV="${XV}0"; done
 set_kv CFBundleIdentifier string "$BID"
 set_kv CFBundleShortVersionString string "$VER"
 set_kv CFBundleVersion string "$BUILD"
-set_kv CFBundleDisplayName string "0 A.D."
+set_kv CFBundleDisplayName string "$APP_TITLE"
 $PB -c "Delete :CFBundleSupportedPlatforms" "$P" 2>/dev/null || true; $PB -c "Add :CFBundleSupportedPlatforms array" -c "Add :CFBundleSupportedPlatforms:0 string iPhoneOS" "$P"
 set_kv DTPlatformName string iphoneos
 set_kv DTPlatformVersion string "$SDKV"

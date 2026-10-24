@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Launch an .app in the iOS Simulator for N seconds, capture its stdout/stderr and a screenshot.
 Usage: sim-launch.py <App.app> <bundle-id> <out-dir> [seconds] [app args...]"""
-import json, os, subprocess, sys, time
+import json, os, re, subprocess, sys, time
 
 app, bundle, out = sys.argv[1:4]
 secs = int(sys.argv[4]) if len(sys.argv) > 4 else 60
@@ -15,6 +15,12 @@ def run(*a, check=False, **kw):
 
 devs = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"], text=True))["devices"]
 cands = sorted((rt, d["name"], d["udid"]) for rt, lst in devs.items() if "iOS" in rt for d in lst if d["name"].startswith("iPad" if "iPad" in os.environ.get("SIM_DEVICE", "") else "iPhone"))
+# SIM_RUNTIME (regex on the runtime id, e.g. "iOS-18") picks an older runtime when one is installed:
+# iPadOS 26 letterboxes landscape-only apps in a portrait simulator, iPadOS 18 rotates them.
+if os.environ.get("SIM_RUNTIME"):
+    rts = [c for c in cands if re.search(os.environ["SIM_RUNTIME"], c[0])]
+    print("SIM_RUNTIME matches", sorted({c[0] for c in rts}) or "nothing, using all runtimes", flush=True)
+    cands = rts or cands
 # Prefer a current notched/Dynamic Island phone (safe areas), e.g. "iPhone 17 Pro"; SIM_DEVICE overrides.
 import re
 pat = re.compile(os.environ.get("SIM_DEVICE", r"^iPhone \d+ Pro$"))
@@ -44,7 +50,7 @@ for i in range(secs):
         print(f"app exited after ~{i+1}s with {p.returncode}", flush=True)
         break
     if i in (15, 45, 90) or (i % every == every - 1) or i == secs - 2:
-        run("xcrun", "simctl", "io", udid, "screenshot", os.path.join(out, f"engine-{i+1:03d}s.png"))
+        run("xcrun", "simctl", "io", udid, "screenshot", *(["--mask=" + os.environ["SHOT_MASK"]] if os.environ.get("SHOT_MASK") else []), os.path.join(out, f"engine-{i+1:03d}s.png"))
 run("xcrun", "simctl", "terminate", udid, bundle)
 time.sleep(1)
 if p.poll() is None:

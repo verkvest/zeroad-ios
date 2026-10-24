@@ -5,6 +5,7 @@
 set -eo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUTDIR="${1:-$ROOT/out}"
+APP_TITLE="${IOS_APP_TITLE:-$(python3 -c 'import re,sys; print(re.search(r"\"IOS_APP_TITLE\", \"([^\"]+)\"", open(sys.argv[1]).read()).group(1))' "$ROOT/ios/make-ios-mod.py")}"
 Z="$ROOT/build/0ad"
 BIN="$(find "$Z/binaries/system" -maxdepth 1 -name 'pyrogenesis*' -type f | head -1)"
 [ -n "$BIN" ] || { echo "pyrogenesis not linked"; exit 1; }
@@ -51,10 +52,10 @@ du -sh "$APP/data"
 
 sed -e 's/${MACOSX_BUNDLE_EXECUTABLE_NAME}/pyrogenesis/' \
     -e 's/${MACOSX_BUNDLE_GUI_IDENTIFIER}/es.verkvest.zeroad/' \
-    -e 's/${MACOSX_BUNDLE_BUNDLE_NAME}/0 A.D./' \
+    -e "s/\${MACOSX_BUNDLE_BUNDLE_NAME}/$APP_TITLE/" \
     -e 's/${MACOSX_BUNDLE_SHORT_VERSION_STRING}/0.1.0/' \
     -e 's/${MACOSX_BUNDLE_BUNDLE_VERSION}/1/' \
-    -e 's/0 A.D. Touch/0 A.D./' \
+    -e "s/0 A.D. Touch/$APP_TITLE/" \
     "$ROOT/touchdemo/Info.plist.in" > "$APP/Info.plist"
 plutil -lint "$APP/Info.plist"
 codesign --force --sign - "$APP"
