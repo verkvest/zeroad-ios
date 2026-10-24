@@ -56,3 +56,17 @@ Updated: 2026-10-24 11:22 (Europe/Madrid)
 - Known: in build 13 the Home button finds no CC (skirmish CC template names differ) -> fixed in f0b7a23 (match CivCentre class); ship as testflight-engine-9 / build 14 after its CI.
 - Self-test camera ends off-map after the two-finger pan (finger-follow pan near the horizon) -> world black in later screenshots; not a render bug.
 - ASC crashes: only the build 11 one (2026-10-24 12:22 Madrid); none for builds 12/13 yet.
+
+## Update 2026-10-24 ~14:40 (Europe/Madrid): phone HUD redesign + audio (target build 14, tag testflight-engine-9)
+- Owner on device: "всё мелко и неудобно", no music.
+- Audio: patch 0011 sets AVAudioSession category Playback + setActive before OpenAL opens the device
+  (OpenAL Soft never configures the session -> SoloAmbient -> muted by the silent switch). sound.ios.category=ambient / sound.ios.mixwithothers=true to tune.
+  Music pack itself is fine (Vorbis q0 via ffmpeg, OpenAL init OK in the simulator log). musicgain default 0.35.
+- HUD (ios mod, ios_hud.js + make-ios-mod.py):
+  icon grids of all selection panels scaled 1.7x (38 -> 65 lu = ~43pt at GUI scale 2); right grid 8 columns, grows upwards;
+  minimap 220 lu bottom-left (toolbar "Map" toggles), details card above it hidden by default (toolbar "Info"), only the command row stays;
+  formations limited to one row; top bar 1.4x with bigger resource font, civ emblem + build label hidden; Menu dropdown 1.4x;
+  toolbar = 12 icon buttons 72 lu (48pt) top-right (Idle army replaced by Info). Tap tolerance ring (ios.taptolerance, 16 lu).
+  Main menu buttons 44 lu with 20px font. Camera default zoom 85 (was 120); Camera button resets angle/zoom.
+- GUI scale kept at ~2.0 for all pages (menus/dialogs need ~1100x600 logical); the session HUD is enlarged by layout instead.
+- Not done: game-setup page redesign (Quick Play is the one-tap path), paging in grids (grid grows instead).
