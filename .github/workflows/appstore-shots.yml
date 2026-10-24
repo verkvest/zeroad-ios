@@ -31,7 +31,7 @@ jobs:
       - name: App with this commit's ios mod
         run: |
           mkdir -p build z
-          ditto -x -k art/Pyrogenesis-iphonesimulator.app.zip build
+          ditto -x -k "$(find art -name Pyrogenesis-iphonesimulator.app.zip | head -1)" build
           APP=build/Pyrogenesis.app
           cp "$APP/data/mods/public/public.zip" z/public-mobile.zip
           cp "$APP/data/mods/mod/mod.zip" z/mod.zip
