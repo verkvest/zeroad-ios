@@ -1,0 +1,65 @@
+# App Store screenshots: reuse the simulator app of an ios-build run, refresh its ios mod from
+# this commit (ios/make-ios-mod.py), and record the -conf=ios.shots:true scene on a 6.9" iPhone
+# and a 13" iPad in landscape. Runs on a push to the appstore-shots branch (or manually).
+name: appstore-shots
+on:
+  push:
+    branches: [appstore-shots]
+  workflow_dispatch:
+    inputs:
+      build_run:
+        description: ios-build run id that has the engine-iphonesimulator-log artifact
+        required: false
+jobs:
+  shots:
+    runs-on: macos-15
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { out: iphone, device: "^iPhone \\d+ Pro Max$", runtime: "", secs: 520 }
+          - { out: ipad, device: "^iPad Pro 13", runtime: "iOS-18", secs: 560 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: engine-iphonesimulator-log
+          run-id: ${{ inputs.build_run || '40120025647' }}
+          github-token: ${{ github.token }}
+          path: art
+      - name: Xcode 26
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -vi beta | sort -V | tail -1)
+          [ -n "$X" ] && sudo xcode-select -s "$X"
+          xcodebuild -version
+          xcrun simctl list runtimes
+          xcrun simctl list devices available | grep -E "iPhone .*Pro Max|iPad Pro 13|^-- " || true
+      - name: App with this commit's ios mod
+        run: |
+          mkdir -p build z
+          ditto -x -k "$(find art -name Pyrogenesis-iphonesimulator.app.zip | head -1)" build
+          APP=build/Pyrogenesis.app
+          cp "$APP/data/mods/public/public.zip" z/public-mobile.zip
+          cp "$APP/data/mods/mod/mod.zip" z/mod.zip
+          rm -rf "$APP/data/mods/ios"
+          python3 ios/make-ios-mod.py z/public-mobile.zip "$APP/data/mods/ios"
+          # Full-screen landscape on iPad too (otherwise the simulator letterboxes it in portrait).
+          /usr/libexec/PlistBuddy -c "Add :UIRequiresFullScreen bool true" "$APP/Info.plist" || true
+          codesign --force --sign - "$APP"
+      - name: Screenshots ${{ matrix.out }}
+        continue-on-error: true
+        timeout-minutes: 32
+        env:
+          SHOT_EVERY: "10"
+          SHOT_MASK: ignored
+          SIM_VIDEO: "1"
+          SIM_DEVICE: ${{ matrix.device }}
+          # iPadOS 26 letterboxes a landscape-only app in the portrait simulator; iPadOS 18 rotates it.
+          SIM_RUNTIME: ${{ matrix.runtime }}
+        run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out/${{ matrix.out }} ${{ matrix.secs }} -conf=ios.autoquickplay:true -conf=ios.shots:true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: appstore-shots-${{ matrix.out }}
+          path: out

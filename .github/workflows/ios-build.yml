@@ -1,0 +1,209 @@
+name: ios-build
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gesture-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Host unit tests for the touch gesture layer
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror touch/TouchGestures.cpp touch/test_TouchGestures.cpp -o test_touch
+          ./test_touch
+      - name: Fetch pinned 0 A.D. sources and apply the iOS patches
+        run: |
+          scripts/fetch-0ad.sh
+          scripts/apply-0ad-patches.sh
+
+  deps:
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [iphonesimulator, iphoneos]
+    env:
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: |
+          brew install ninja autoconf automake libtool pkg-config || true
+          xcodebuild -version
+          xcrun --sdk "$PLATFORM" --show-sdk-path
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: build/deps/${{ matrix.platform }}
+          key: deps-${{ matrix.platform }}-${{ hashFiles('ios/build-ios-deps.sh', 'ios/env.sh') }}
+          restore-keys: deps-${{ matrix.platform }}-
+      - name: Cache sources
+        uses: actions/cache@v4
+        with:
+          path: build/deps-src/*.tar.*
+          key: deps-src-${{ hashFiles('ios/build-ios-deps.sh') }}
+          restore-keys: deps-src-
+      - name: Build third-party libs for iOS
+        run: ios/build-ios-deps.sh
+      - name: Pack
+        run: tar -C build/deps -czf deps-${PLATFORM}.tar.gz ${PLATFORM}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deps-${{ matrix.platform }}
+          path: deps-${{ matrix.platform }}.tar.gz
+          retention-days: 14
+
+  touchdemo:
+    needs: [deps, gesture-tests]
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [iphonesimulator, iphoneos]
+    env:
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install ninja || true
+      - uses: actions/download-artifact@v4
+        with:
+          name: deps-${{ matrix.platform }}
+      - run: mkdir -p build/deps && tar -C build/deps -xzf deps-${PLATFORM}.tar.gz
+      - name: Build touch demo .app
+        run: |
+          . ios/env.sh
+          cmake -S touchdemo -B build/touchdemo-$PLATFORM -G Ninja $CMAKE_IOS_FLAGS -DCMAKE_INSTALL_PREFIX=/tmp/unused
+          cmake --build build/touchdemo-$PLATFORM -j "$JOBS"
+          APP=build/touchdemo-$PLATFORM/ZeroADTouch.app
+          ls -la "$APP"; file "$APP/ZeroADTouch"; otool -l "$APP/ZeroADTouch" | grep -A4 LC_BUILD_VERSION | head -8
+          codesign --force --sign - "$APP" || true
+          mkdir -p out && ditto -c -k --keepParent "$APP" out/ZeroADTouch-$PLATFORM.app.zip
+      - name: Run in iOS Simulator (self-test + screenshot)
+        if: matrix.platform == 'iphonesimulator'
+        run: python3 scripts/sim-run.py build/touchdemo-$PLATFORM/ZeroADTouch.app es.verkvest.zeroad.touchdemo out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: touchdemo-${{ matrix.platform }}
+          path: out/
+          retention-days: 14
+
+  # SpiderMonkey 128, interpreter-only (iOS forbids JIT). Slow (~15 min cold), cached.
+  spidermonkey:
+    runs-on: macos-15
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [iphonesimulator, iphoneos]
+    env:
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: build/mozjs/${{ matrix.platform }}
+          key: mozjs-${{ matrix.platform }}-${{ hashFiles('ios/build-spidermonkey-ios.sh', 'patches/spidermonkey/**', 'scripts/fetch-0ad.sh') }}
+      - uses: actions/setup-python@v5
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          python-version: "3.12"
+      - name: Rust toolchain
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          rustup toolchain install 1.82.0 --profile minimal
+          rustup default 1.82.0
+          rustup target add aarch64-apple-ios-sim aarch64-apple-ios
+          brew install cbindgen
+      - name: Build SpiderMonkey for iOS (no JIT)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          scripts/fetch-0ad.sh
+          ios/build-spidermonkey-ios.sh
+      - name: Pack
+        run: tar -C build/mozjs -czf mozjs-${PLATFORM}.tar.gz ${PLATFORM}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mozjs-${{ matrix.platform }}
+          path: mozjs-${{ matrix.platform }}.tar.gz
+          retention-days: 14
+
+  # Experimental: compile/link the real engine for iOS (Simulator + device), package an .app, run it in the Simulator.
+  engine:
+    needs: [deps, spidermonkey]
+    runs-on: macos-15
+    timeout-minutes: 90
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [iphonesimulator, iphoneos]
+    env:
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install pkg-config || true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "{deps,mozjs}-${{ matrix.platform }}"
+          merge-multiple: true
+      - run: |
+          mkdir -p build/deps build/mozjs
+          tar -C build/deps -xzf deps-${PLATFORM}.tar.gz
+          tar -C build/mozjs -xzf mozjs-${PLATFORM}.tar.gz
+      - name: Xcode 26 for the device build (App Store requires the iOS 26 SDK)
+        if: matrix.platform == 'iphoneos'
+        run: |
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -vi beta | sort -V | tail -1)
+          [ -n "$X" ] && sudo xcode-select -s "$X"
+          xcodebuild -version
+      - name: Compile pyrogenesis for iOS (make -k, collect errors)
+        run: ios/build-engine.sh
+      - uses: actions/cache@v4
+        with:
+          path: build/data
+          key: zeroad-mobile-data-0.28.0-v1
+      - name: Package Pyrogenesis.app (engine + game data)
+        id: pkg
+        timeout-minutes: 30
+        run: scripts/package-engine-app.sh out
+      - name: Launch engine in iOS Simulator
+        if: steps.pkg.outcome == 'success' && matrix.platform == 'iphonesimulator'
+        timeout-minutes: 15
+        env:
+          SHOT_EVERY: "10"
+        run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out 120 -conf=ios.menutest:true
+      - name: Main menu -> Quick Play vs AI (auto-pressed) + scripted touch self-test in iOS Simulator
+        if: steps.pkg.outcome == 'success' && matrix.platform == 'iphonesimulator'
+        continue-on-error: true
+        timeout-minutes: 20
+        env:
+          SHOT_EVERY: "10"
+        run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out/skirmish 300 -conf=ios.autoquickplay:true -conf=ios.touchtest:true
+      - name: iPad (landscape) - main menu, Quick Play, HUD, dialogs, options
+        if: steps.pkg.outcome == 'success' && matrix.platform == 'iphonesimulator'
+        continue-on-error: true
+        timeout-minutes: 20
+        env:
+          SHOT_EVERY: "10"
+          SIM_DEVICE: "^iPad (Air|Pro) 11"
+        run: python3 scripts/sim-launch.py build/Pyrogenesis.app es.verkvest.zeroad out/ipad 230 -conf=ios.autoquickplay:true -conf=ios.touchtest:true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: engine-${{ matrix.platform }}-log
+          path: |
+            build/engine-*.log
+            build/engine-summary.txt
+            out/
+          retention-days: 14

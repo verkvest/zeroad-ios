@@ -1,0 +1,152 @@
+diff --git a/source/gui/GUITooltip.cpp b/source/gui/GUITooltip.cpp
+index f4ecff2..8fc7dde 100644
+--- a/source/gui/GUITooltip.cpp
++++ b/source/gui/GUITooltip.cpp
+@@ -194,6 +194,18 @@ static i32 GetTooltipDelay(const CStr& style, CGUI& pGUI)
+ 	return tooltipobj->GetTooltipDelay();
+ }
+ 
++double GUITooltip::s_TouchUntil = 0.0;
++
++void GUITooltip::TouchAllow(double until)
++{
++	s_TouchUntil = until;
++}
++
++void GUITooltip::TouchCancel()
++{
++	s_TouchUntil = 0.0;
++}
++
+ void GUITooltip::Update(IGUIObject* Nearest, const CVector2D& MousePos, CGUI& GUI)
+ {
+ 	// Called once per frame, so efficiency isn't vital
+@@ -202,6 +214,31 @@ void GUITooltip::Update(IGUIObject* Nearest, const CVector2D& MousePos, CGUI& GU
+ 	CStr style;
+ 	int nextstate = -1;
+ 
++#if OS_IOS
++	// Touch: no hover tooltips. Show one only after a long press on a GUI object.
++	if (now >= s_TouchUntil)
++	{
++		if (m_State == ST_SHOWING)
++			HideTooltip(m_PreviousTooltipName, GUI);
++		m_State = ST_IN_MOTION;
++		m_PreviousMousePos = MousePos;
++		m_PreviousObject = Nearest;
++		return;
++	}
++	if (m_State != ST_SHOWING)
++	{
++		if (GetTooltip(Nearest, style))
++		{
++			ShowTooltip(Nearest, MousePos, style, GUI);
++			m_PreviousTooltipName = style;
++			m_State = ST_SHOWING;
++		}
++		m_PreviousMousePos = MousePos;
++		m_PreviousObject = Nearest;
++		return;
++	}
++#endif
++
+ 	switch (m_State)
+ 	{
+ 	case ST_IN_MOTION:
+diff --git a/source/gui/GUITooltip.h b/source/gui/GUITooltip.h
+index 83ae65f..c56158d 100644
+--- a/source/gui/GUITooltip.h
++++ b/source/gui/GUITooltip.h
+@@ -33,6 +33,13 @@ public:
+ 	GUITooltip();
+ 	void Update(IGUIObject* Nearest, const CVector2D& MousePos, CGUI& GUI);
+ 
++	/**
++	 * iOS touch: there is no hover, so tooltips are only shown after a long press on a
++	 * GUI object, until the given time (timer_Time()) or until TouchCancel() (next tap).
++	 */
++	static void TouchAllow(double until);
++	static void TouchCancel();
++
+ private:
+ 
+ 	void ShowTooltip(IGUIObject* obj, const CVector2D& pos, const CStr& style, CGUI& pGUI);
+@@ -45,6 +52,8 @@ private:
+ 	CStr m_PreviousTooltipName;
+ 	CVector2D m_PreviousMousePos;
+ 	double m_Time;
++
++	static double s_TouchUntil;
+ };
+ 
+ #endif // INCLUDED_GUITOOLTIP
+diff --git a/source/ps/TouchInput.cpp b/source/ps/TouchInput.cpp
+index c3e483c..9efe2c1 100644
+--- a/source/ps/TouchInput.cpp
++++ b/source/ps/TouchInput.cpp
+@@ -23,6 +23,7 @@
+ #include "graphics/GameView.h"
+ #include "gui/CGUI.h"
+ #include "gui/GUIManager.h"
++#include "gui/GUITooltip.h"
+ #include "lib/external_libraries/libsdl.h"
+ #include "lib/sysdep/os.h"
+ #include "lib/timer.h"
+@@ -294,6 +295,12 @@ void CTouchInput::Frame()
+ 			break;
+ 		}
+ 		case touch::Action::RightClick:
++			if (m_TooltipPress)
++			{
++				// Long press on the GUI was a tooltip request.
++				m_TooltipPress = false;
++				break;
++			}
+ 			PushMouseMotion(a.x, a.y, false);
+ 			PushMouseButton(SDL_BUTTON_RIGHT, true, a.x, a.y);
+ 			PushMouseButton(SDL_BUTTON_RIGHT, false, a.x, a.y);
+@@ -302,6 +309,10 @@ void CTouchInput::Frame()
+ 		{
+ 			// Feedback: haptic + a ring drawn by the session GUI (gui/session/ios_hud.js polls this).
+ 			Haptic();
++			// Over a button / panel: show its tooltip for 2 s instead of arming a right click.
++			m_TooltipPress = OverGUI(a.x, a.y);
++			if (m_TooltipPress)
++				GUITooltip::TouchAllow(timer_Time() + 2.0);
+ 			g_ConfigDB.SetValueString(CFG_SYSTEM, "ios.touch.armed",
+ 				CStr::FromInt(++m_ArmedCount) + " " + CStr::FromInt(static_cast<int>(a.x)) + " " + CStr::FromInt(static_cast<int>(a.y)));
+ 			PushMouseMotion(a.x, a.y, false);
+@@ -310,6 +321,7 @@ void CTouchInput::Frame()
+ 			break;
+ 		}
+ 		case touch::Action::DragStart:
++			m_TooltipPress = false;
+ 			if (!a.box && InGame() && !OverGUI(a.x, a.y))
+ 			{
+ 				m_CameraDrag = true;
+@@ -377,6 +389,12 @@ InReaction CTouchInput::HandleEvent(const SDL_Event_* ev)
+ 		const float y = ev->ev.tfinger.y * h;
+ 		const double t = timer_Time();
+ 		const int64_t id = static_cast<int64_t>(ev->ev.tfinger.fingerId);
++		if (ev->ev.type == SDL_FINGERDOWN)
++		{
++			// Any new touch hides a tooltip shown by a long press.
++			GUITooltip::TouchCancel();
++			m_TooltipPress = false;
++		}
+ 		if (ev->ev.type == SDL_FINGERDOWN)
+ 			m_Gestures.FingerDown(id, x, y, t);
+ 		else if (ev->ev.type == SDL_FINGERUP)
+diff --git a/source/ps/TouchInput.h b/source/ps/TouchInput.h
+index 3bfe98b..8cbfd39 100644
+--- a/source/ps/TouchInput.h
++++ b/source/ps/TouchInput.h
+@@ -69,6 +69,8 @@ private:
+ 	bool m_CameraDrag = false;
+ 	float m_DragLastX = 0.f, m_DragLastY = 0.f;
+ 	int m_ArmedCount = 0;
++	// Long press on a GUI object shows its tooltip; the release then does not right-click.
++	bool m_TooltipPress = false;
+ };
+ 
+ extern CTouchInput g_TouchInput;

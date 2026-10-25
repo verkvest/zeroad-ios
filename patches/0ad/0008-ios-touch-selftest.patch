@@ -1,0 +1,136 @@
+diff --git a/source/ps/TouchInput.cpp b/source/ps/TouchInput.cpp
+index 810f493..5f9ff9c 100644
+--- a/source/ps/TouchInput.cpp
++++ b/source/ps/TouchInput.cpp
+@@ -24,12 +24,15 @@
+ #include "lib/external_libraries/libsdl.h"
+ #include "lib/sysdep/os.h"
+ #include "lib/timer.h"
++#include "ps/CLogger.h"
++#include "ps/ConfigDB.h"
+ #include "ps/Game.h"
+ #include "ps/VideoMode.h"
+ 
+ #include <SDL_events.h>
+ #include <SDL_mouse.h>
+ #include <cmath>
++#include <vector>
+ 
+ extern int g_xres, g_yres;
+ 
+@@ -51,6 +54,101 @@ void WindowSize(int& w, int& h)
+ 		h = g_VideoMode.GetYRes();
+ 	}
+ }
++// --- Touch self-test (CI): "-conf=ios.touchtest:true" replays a scripted sequence of finger
++// events once a game has started, through the same path as real touches.
++struct TestTouch
++{
++	double t;      // seconds after game start
++	Uint32 type;   // SDL_FINGERDOWN / SDL_FINGERMOTION / SDL_FINGERUP
++	int finger;
++	float x, y;    // normalized
++	const char* label;
++};
++
++std::vector<TestTouch> MakeTouchTestScript()
++{
++	std::vector<TestTouch> s;
++	auto drag = [&s](double t, int f, float x0, float y0, float x1, float y1, double dur, const char* label) {
++		s.push_back({t, SDL_FINGERDOWN, f, x0, y0, label});
++		for (int i = 1; i <= 8; ++i)
++			s.push_back({t + dur * i / 8, SDL_FINGERMOTION, f, x0 + (x1 - x0) * i / 8, y0 + (y1 - y0) * i / 8, nullptr});
++		s.push_back({t + dur + 0.05, SDL_FINGERUP, f, x1, y1, nullptr});
++	};
++	auto press = [&s](double t, float x, float y, double hold, const char* label) {
++		s.push_back({t, SDL_FINGERDOWN, 1, x, y, label});
++		s.push_back({t + hold, SDL_FINGERUP, 1, x, y, nullptr});
++	};
++	// 1. box-select everything around the screen center (one-finger drag)
++	drag(20.0, 1, 0.25f, 0.25f, 0.75f, 0.80f, 0.8, "box select (one-finger drag)");
++	// 2. tap on the ground with units selected -> move order
++	press(30.0, 0.45f, 0.40f, 0.08, "tap ground -> move order");
++	// 3. long press -> right click order
++	press(45.0, 0.15f, 0.70f, 0.9, "long press -> right click order");
++	// 4. two-finger pan
++	s.push_back({60.0, SDL_FINGERDOWN, 1, 0.40f, 0.50f, "two-finger pan"});
++	s.push_back({60.02, SDL_FINGERDOWN, 2, 0.60f, 0.50f, nullptr});
++	for (int i = 1; i <= 10; ++i)
++	{
++		s.push_back({60.05 + 0.08 * i, SDL_FINGERMOTION, 1, 0.40f - 0.02f * i, 0.50f, nullptr});
++		s.push_back({60.06 + 0.08 * i, SDL_FINGERMOTION, 2, 0.60f - 0.02f * i, 0.50f, nullptr});
++	}
++	s.push_back({61.0, SDL_FINGERUP, 1, 0.20f, 0.50f, nullptr});
++	s.push_back({61.01, SDL_FINGERUP, 2, 0.40f, 0.50f, nullptr});
++	// 5. pinch out (zoom in)
++	s.push_back({75.0, SDL_FINGERDOWN, 1, 0.45f, 0.50f, "pinch zoom in"});
++	s.push_back({75.02, SDL_FINGERDOWN, 2, 0.55f, 0.50f, nullptr});
++	for (int i = 1; i <= 10; ++i)
++	{
++		s.push_back({75.05 + 0.08 * i, SDL_FINGERMOTION, 1, 0.45f - 0.02f * i, 0.50f - 0.01f * i, nullptr});
++		s.push_back({75.06 + 0.08 * i, SDL_FINGERMOTION, 2, 0.55f + 0.02f * i, 0.50f + 0.01f * i, nullptr});
++	}
++	s.push_back({76.0, SDL_FINGERUP, 1, 0.25f, 0.40f, nullptr});
++	s.push_back({76.01, SDL_FINGERUP, 2, 0.75f, 0.60f, nullptr});
++	// 6. tap the screen center (select whatever is there), then a double tap
++	press(90.0, 0.50f, 0.55f, 0.08, "tap center (select)");
++	press(100.0, 0.50f, 0.55f, 0.08, "double tap center");
++	press(100.2, 0.50f, 0.55f, 0.08, nullptr);
++	return s;
++}
++
++bool TouchTestEnabled()
++{
++	static int enabled = -1;
++	if (enabled < 0)
++		enabled = g_ConfigDB.Get("ios.touchtest", false, CFG_COMMAND) ? 1 : 0;
++	return enabled == 1;
++}
++
++void RunTouchTest()
++{
++	if (!TouchTestEnabled() || !g_Game || !g_Game->IsGameStarted())
++		return;
++	static std::vector<TestTouch> script = MakeTouchTestScript();
++	static size_t next = 0;
++	static double start = -1.0;
++	const double now = timer_Time();
++	if (start < 0.0)
++	{
++		start = now;
++		LOGMESSAGE("iOS touchtest: game started, replaying %zu touch events", script.size());
++	}
++	int w, h;
++	WindowSize(w, h);
++	while (next < script.size() && now - start >= script[next].t)
++	{
++		const TestTouch& tt = script[next++];
++		if (tt.label)
++			LOGMESSAGE("iOS touchtest: t=%.1fs %s", now - start, tt.label);
++		SDL_Event ev{};
++		ev.type = tt.type;
++		ev.tfinger.touchId = 1;
++		ev.tfinger.fingerId = tt.finger;
++		ev.tfinger.x = tt.x;
++		ev.tfinger.y = tt.y;
++		ev.tfinger.pressure = 1.f;
++		SDL_PushEvent(&ev);
++	}
++}
+ } // anonymous namespace
+ 
+ CTouchInput::CTouchInput() = default;
+@@ -125,10 +223,13 @@ void CTouchInput::Frame()
+ 	int pw, ph;
+ 	WindowSize(pw, ph);
+ 	const float ratio = pw > 0 ? static_cast<float>(g_xres) / pw : 1.f;
++	RunTouchTest();
+ 	m_Gestures.Update(timer_Time());
+ 	for (touch::Action a : m_Gestures.Poll())
+ 	{
+ 		a.x *= ratio; a.y *= ratio; a.dx *= ratio; a.dy *= ratio;
++		if (TouchTestEnabled() && a.type != touch::Action::DragMove && a.type != touch::Action::Pan && a.type != touch::Action::Zoom)
++			LOGMESSAGE("iOS touch: action %d at (%.0f, %.0f)", static_cast<int>(a.type), a.x, a.y);
+ 		switch (a.type)
+ 		{
+ 		case touch::Action::LeftClick:
