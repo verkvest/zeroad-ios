@@ -190,3 +190,6 @@ Updated: 2026-10-24 11:22 (Europe/Madrid)
   Territory status: CANNOT_SELL everywhere (Paid Apps agreement/bank/tax not in effect yet) + TRADER_STATUS_NOT_PROVIDED in 27 EU territories (DSA trader declaration, web UI).
 - Copyright changed to "2026 Aleksandr Verkhovod" (account is Individual, not VERKVEST SL).
 - Web-UI only: App Privacy ("Data Not Collected"), DSA trader status, agreements/bank/tax.
+
+## Submitted for review (2026-10-25 07:25 Madrid)
+- reviewSubmission 95f57f46-a380-43da-8f36-98326e15d736: version 1.0 + build 18, state WAITING_FOR_REVIEW, release AFTER_APPROVAL. contentRightsDeclaration=USES_THIRD_PARTY_CONTENT. Owner approval: question card t473s1698.
