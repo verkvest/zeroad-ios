@@ -179,3 +179,14 @@ Updated: 2026-10-24 11:22 (Europe/Madrid)
 - Previews (from the same post-fix run): en-US preview-*.mp4, es-ES preview-*-es.mp4 (Spanish captions, last "Para iPhone y iPad"); all COMPLETE, poster 00:00:15:00.
 - Paid Applications Agreement accepted 2026-10-24 20:32 Madrid (email); "active"/bank/tax status not visible via API.
 - Remaining: privacy page, LICENSE file in repo, App Privacy, age rating questionnaire, category, price/availability, review contact details, submit.
+
+## Pre-submission items (2026-10-25 ~07:20 Madrid) — still NOT submitted
+- LICENSE (GPL-2.0 text) + LICENSING.md (code GPL-2.0-or-later, art CC BY-SA 3.0, icon CC BY-SA) on feature/ios-prototype (5ded254) and main (dec9163).
+- Privacy page: GitHub Pages (branch gh-pages) https://verkvest.github.io/zeroad-ios/privacy/bronze-legions/ (200, EN/ES, "no data collected").
+  verkvest.com A -> 156.67.26.239 (Contabo) — not touched. privacyPolicyUrl switched in en-US and es-ES.
+- Age rating declaration filled -> 12+ (realistic violence + weapons infrequent/mild, messagingAndChat=true for direct-MP chat, rest none/false).
+- Categories: Games / Strategy + Simulation. Review detail 987dec95-…: Aleksandr Verkhovod, +34 711 070 470, verkvest@gmail.com, no demo account, notes.
+- Price schedule: base ESP, manual price 49.99 € (proceeds 34.96). Availability: all 175 territories, new territories on.
+  Territory status: CANNOT_SELL everywhere (Paid Apps agreement/bank/tax not in effect yet) + TRADER_STATUS_NOT_PROVIDED in 27 EU territories (DSA trader declaration, web UI).
+- Copyright changed to "2026 Aleksandr Verkhovod" (account is Individual, not VERKVEST SL).
+- Web-UI only: App Privacy ("Data Not Collected"), DSA trader status, agreements/bank/tax.

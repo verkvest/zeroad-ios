@@ -53,7 +53,7 @@ Primary: Games, sub-categories Strategy (+ Simulation). Secondary: Games > Simul
 Expected rating: 12+ (13+ in the new scheme).
 
 ## URLs
-- Privacy policy: https://verkvest.com/privacy/bronze-legions  (does NOT exist yet — verkvest.com/privacy returns 404; text draft below)
+- Privacy policy: https://verkvest.github.io/zeroad-ios/privacy/bronze-legions/ (GitHub Pages, branch gh-pages; verkvest.com is on the Contabo server, not touched)  (does NOT exist yet — verkvest.com/privacy returns 404; text draft below)
 - Support: https://github.com/verkvest/zeroad-ios/issues (exists) or https://verkvest.com/support (404 now)
 - Marketing (optional): https://github.com/verkvest/zeroad-ios
 - Copyright: "2026 VERKVEST SL"  (game: © Wildfire Games, GPL / CC BY-SA)
