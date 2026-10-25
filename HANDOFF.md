@@ -170,3 +170,12 @@ Updated: 2026-10-24 11:22 (Europe/Madrid)
 - testflight-engine-13 (dispatch run 40133851195, ios-build 40130705674 with HUD page-button fix) -> build 18:
   IPA CFBundleDisplayName=Bronze Legions, CFBundleName=Bronze Legions; ASC VALID / IN_BETA_TESTING.
 - ASC listing uploads (screens/previews/localizations) still paused; nothing uploaded yet.
+
+## ASC listing uploaded (2026-10-25 ~07:15 Madrid) — NOT submitted, no price
+- appInfoLocalizations en-US + es-ES: name "Bronze Legions: Ancient RTS", subtitle, privacyPolicyUrl https://verkvest.com/privacy/bronze-legions (page still 404).
+- Version 1.0 loc en-US + es-ES (es id 3781e3d2-…): description, keywords, promo text from docs/appstore-listing.md; supportUrl github issues, marketingUrl repo; copyright "2026 VERKVEST SL". Build 18 attached.
+- Screenshots 4×APP_IPHONE_67 (2868x1320) + 4×APP_IPAD_PRO_3GEN_129 (2752x2064) per locale, all COMPLETE. Stills re-cut from post-HUD-fix shots run 40130706770
+  (iPhone 016/070/250/420 s, iPad 016/060/330/540 s; iPhone pill patched with a feathered copy of the area to its right).
+- Previews (from the same post-fix run): en-US preview-*.mp4, es-ES preview-*-es.mp4 (Spanish captions, last "Para iPhone y iPad"); all COMPLETE, poster 00:00:15:00.
+- Paid Applications Agreement accepted 2026-10-24 20:32 Madrid (email); "active"/bank/tax status not visible via API.
+- Remaining: privacy page, LICENSE file in repo, App Privacy, age rating questionnaire, category, price/availability, review contact details, submit.
